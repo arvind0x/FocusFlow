@@ -109,5 +109,10 @@ export interface ProductivitySummary {
   totalSavedMinutes: number
   sessionsCompletedToday: number
   dailyGoalAdherencePercent: number
-  weeklyTrend: { day: string; productiveMinutes: number; wastedMinutes: number; goalMinutes: number }[]
+  weeklyTrend: { day: string; date: string; productiveMinutes: number; wastedMinutes: number; goalMinutes: number }[]
+  focusScorePercent: number
+  averageSessionMinutes: number
+  streakDays: number
+  totalSessionsAllTime: number
+  hasActivity: boolean
 }

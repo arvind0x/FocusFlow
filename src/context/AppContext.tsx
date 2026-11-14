@@ -20,10 +20,85 @@ import {
   initialFocusSessions,
   initialDistractionLogs,
   initialDistractionItems,
-  initialSettings
-} from '../data/mockData'
-import { getTodayDateString } from '../utils/formatters'
+  initialSettings,
+  LEGACY_DEMO_IDS,
+  LEGACY_DEMO_SUBJECT_IDS,
+  LEGACY_DEMO_PROFILE_NAME
+} from '../data/defaults'
+import { getTodayDateString, getLocalDateOf, toLocalDateString } from '../utils/formatters'
 import { soundManager } from '../utils/sound'
+
+const STORAGE_KEY_PREFIX = 'focusflow_v2_'
+
+function readStored<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${key}`)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+// Earlier versions seeded every browser with a fake student's history. Strip those records once
+// so returning users only see what they actually did.
+function purgeLegacyDemoData() {
+  const flagKey = `${STORAGE_KEY_PREFIX}demo_purged`
+  if (localStorage.getItem(flagKey)) return
+
+  const write = (key: string, value: unknown) =>
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}${key}`, JSON.stringify(value))
+  const withoutDemo = <T extends { id: string }>(items: T[]) => items.filter((i) => !LEGACY_DEMO_IDS.has(i.id))
+
+  const tasks = withoutDemo(readStored<TimetableTask[]>('tasks', []))
+  const sessions = withoutDemo(readStored<FocusSession[]>('sessions', []))
+  write('tasks', tasks)
+  write('sessions', sessions)
+  write('distractions', withoutDemo(readStored<DistractionLog[]>('distractions', [])))
+  write('distraction_items', withoutDemo(readStored<DistractionItem[]>('distraction_items', [])))
+
+  const usedSubjectIds = new Set([...tasks, ...sessions].map((x) => x.subjectId))
+  write(
+    'subjects',
+    readStored<Subject[]>('subjects', []).filter(
+      (s) => !LEGACY_DEMO_SUBJECT_IDS.has(s.id) || usedSubjectIds.has(s.id)
+    )
+  )
+
+  const storedProfile = readStored<StudentProfile | null>('profile', null)
+  if (storedProfile?.name === LEGACY_DEMO_PROFILE_NAME) write('profile', initialProfile)
+
+  localStorage.setItem(flagKey, '1')
+}
+
+purgeLegacyDemoData()
+
+function computeStreak(activeDates: Set<string>): number {
+  const cursor = new Date()
+  if (!activeDates.has(toLocalDateString(cursor))) cursor.setDate(cursor.getDate() - 1)
+  let streak = 0
+  while (activeDates.has(toLocalDateString(cursor))) {
+    streak++
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+}
+
+const idleFocusState = {
+  isActive: false,
+  isPaused: false,
+  isBreak: false,
+  subjectId: '',
+  subjectName: '',
+  taskTitle: '',
+  preset: '45-10' as const,
+  totalDurationSeconds: 45 * 60,
+  remainingSeconds: 45 * 60,
+  breakRemainingSeconds: 10 * 60,
+  totalBreakSeconds: 10 * 60,
+  interruptedCount: 0,
+  interruptionSeconds: 0,
+  focusedSeconds: 0
+}
 
 export type TabType = 'landing' | 'login' | 'dashboard' | 'timetable' | 'focus' | 'distraction' | 'analytics' | 'settings'
 
@@ -41,6 +116,7 @@ interface ActiveFocusState {
   totalBreakSeconds: number
   interruptedCount: number
   interruptionSeconds: number
+  focusedSeconds: number
 }
 
 interface AppContextType {
@@ -50,6 +126,7 @@ interface AppContextType {
   updateProfile: (profile: Partial<StudentProfile>) => void
   subjects: Subject[]
   addSubject: (subject: Omit<Subject, 'id'>) => void
+  addSubjects: (subjects: Omit<Subject, 'id'>[]) => Subject[]
   deleteSubject: (id: string) => void
   updateSubject: (id: string, updates: Partial<Subject>) => void
   tasks: TimetableTask[]
@@ -64,6 +141,7 @@ interface AppContextType {
     focusDurationMinutes: number
     breakDurationMinutes: number
     selectedSubjectIds: string[]
+    subjectPool?: Subject[]
   }) => void
   focusSessions: FocusSession[]
   activeFocus: ActiveFocusState
@@ -90,7 +168,7 @@ interface AppContextType {
   settings: AppSettings
   updateSettings: (settings: Partial<AppSettings>) => void
   summary: ProductivitySummary
-  resetToDemoData: () => void
+  resetAllData: () => void
   clearAllData: () => void
   exportDataJSON: () => string
   importDataJSON: (jsonStr: string) => boolean
@@ -114,8 +192,6 @@ interface AppContextType {
   maintenanceToast: boolean
   setMaintenanceToast: (val: boolean) => void
 }
-
-const STORAGE_KEY_PREFIX = 'focusflow_v2_'
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
@@ -162,46 +238,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [maintenanceToast, setMaintenanceToast] = useState<boolean>(false)
 
   // Profile
-  const [profile, setProfile] = useState<StudentProfile>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}profile`)
-    return saved ? JSON.parse(saved) : initialProfile
-  })
+  const [storedProfile, setProfile] = useState<StudentProfile>(() => ({
+    ...initialProfile,
+    ...readStored<Partial<StudentProfile>>('profile', {})
+  }))
+  const [subjects, setSubjects] = useState<Subject[]>(() => readStored('subjects', initialSubjects))
+  const [tasks, setTasks] = useState<TimetableTask[]>(() => readStored('tasks', initialTasks))
+  const [focusSessions, setFocusSessions] = useState<FocusSession[]>(() =>
+    readStored('sessions', initialFocusSessions)
+  )
+  const [distractionLogs, setDistractionLogs] = useState<DistractionLog[]>(() =>
+    readStored('distractions', initialDistractionLogs)
+  )
+  const [distractionItems, setDistractionItems] = useState<DistractionItem[]>(() =>
+    readStored('distraction_items', initialDistractionItems)
+  )
+  const [settings, setSettings] = useState<AppSettings>(() => ({
+    ...initialSettings,
+    ...readStored<Partial<AppSettings>>('settings', {})
+  }))
 
-  // Subjects
-  const [subjects, setSubjects] = useState<Subject[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}subjects`)
-    return saved ? JSON.parse(saved) : initialSubjects
-  })
-
-  // Tasks
-  const [tasks, setTasks] = useState<TimetableTask[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}tasks`)
-    return saved ? JSON.parse(saved) : initialTasks
-  })
-
-  // Focus sessions
-  const [focusSessions, setFocusSessions] = useState<FocusSession[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}sessions`)
-    return saved ? JSON.parse(saved) : initialFocusSessions
-  })
-
-  // Distraction logs
-  const [distractionLogs, setDistractionLogs] = useState<DistractionLog[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}distractions`)
-    return saved ? JSON.parse(saved) : initialDistractionLogs
-  })
-
-  // Distraction list items
-  const [distractionItems, setDistractionItems] = useState<DistractionItem[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}distraction_items`)
-    return saved ? JSON.parse(saved) : initialDistractionItems
-  })
-
-  // Settings
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}settings`)
-    return saved ? JSON.parse(saved) : initialSettings
-  })
+  // Streak is derived from real focus sessions, never stored or typed in by hand.
+  const streakDays = useMemo(
+    () => computeStreak(new Set(focusSessions.map((s) => getLocalDateOf(s.startedAt)))),
+    [focusSessions]
+  )
+  const lastActiveDate = useMemo(
+    () => focusSessions.reduce((latest, s) => {
+      const d = getLocalDateOf(s.startedAt)
+      return d > latest ? d : latest
+    }, ''),
+    [focusSessions]
+  )
+  const profile = useMemo<StudentProfile>(
+    () => ({ ...storedProfile, streakDays, lastActiveDate }),
+    [storedProfile, streakDays, lastActiveDate]
+  )
 
   // Modals & UI states
   const [showOnboardingModal, setShowOnboardingModal] = useState<boolean>(!profile.onboardingCompleted)
@@ -209,21 +281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tabAwayNotice, setTabAwayNotice] = useState<{ show: boolean; seconds: number } | null>(null)
 
   // Active focus session state
-  const [activeFocus, setActiveFocus] = useState<ActiveFocusState>({
-    isActive: false,
-    isPaused: false,
-    isBreak: false,
-    subjectId: '',
-    subjectName: '',
-    taskTitle: '',
-    preset: '45-10',
-    totalDurationSeconds: 45 * 60,
-    remainingSeconds: 45 * 60,
-    breakRemainingSeconds: 10 * 60,
-    totalBreakSeconds: 10 * 60,
-    interruptedCount: 0,
-    interruptionSeconds: 0
-  })
+  const [activeFocus, setActiveFocus] = useState<ActiveFocusState>(idleFocusState)
 
   // Persistence effects
   useEffect(() => {
@@ -235,8 +293,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [githubSync])
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY_PREFIX}profile`, JSON.stringify(profile))
-  }, [profile])
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}profile`, JSON.stringify(storedProfile))
+  }, [storedProfile])
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY_PREFIX}subjects`, JSON.stringify(subjects))
@@ -333,6 +391,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSubjects((prev) => [...prev, { ...newSub, id }])
   }
 
+  const addSubjects = (newSubs: Omit<Subject, 'id'>[]): Subject[] => {
+    const existingNames = new Set(subjects.map((s) => s.name.toLowerCase()))
+    const created = newSubs
+      .filter((s) => !existingNames.has(s.name.toLowerCase()))
+      .map((s, i) => ({ ...s, id: `sub-${Date.now()}-${i}` }))
+    if (created.length > 0) setSubjects((prev) => [...prev, ...created])
+    return [...subjects, ...created]
+  }
+
   const deleteSubject = (id: string) => {
     setSubjects((prev) => prev.filter((s) => s.id !== id))
   }
@@ -391,15 +458,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     endHour,
     focusDurationMinutes,
     breakDurationMinutes,
-    selectedSubjectIds
+    selectedSubjectIds,
+    subjectPool = subjects
   }: {
     startHour: number
     endHour: number
     focusDurationMinutes: number
     breakDurationMinutes: number
     selectedSubjectIds: string[]
+    subjectPool?: Subject[]
   }) => {
-    const targetSubjects = subjects.filter((s) =>
+    const targetSubjects = subjectPool.filter((s) =>
       selectedSubjectIds.length > 0 ? selectedSubjectIds.includes(s.id) : true
     )
 
@@ -504,7 +573,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       breakRemainingSeconds: config.breakMinutes * 60,
       totalBreakSeconds: config.breakMinutes * 60,
       interruptedCount: 0,
-      interruptionSeconds: 0
+      interruptionSeconds: 0,
+      focusedSeconds: 0
     })
 
     if (settings.soundEnabled) {
@@ -543,54 +613,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     endFocusSession(true)
   }
 
-  const endFocusSession = useCallback((completed = true) => {
+  const endFocusSession = useCallback((_completed = true) => {
     if (activeFocus.isActive) {
-      const elapsedSeconds = activeFocus.totalDurationSeconds - activeFocus.remainingSeconds
-      if (elapsedSeconds > 60 || completed) {
+      // Only seconds the timer actually ran count, minus time spent away from the tab.
+      const productiveSeconds = Math.max(0, activeFocus.focusedSeconds - activeFocus.interruptionSeconds)
+      if (productiveSeconds >= 60) {
         const newSession: FocusSession = {
           id: `session-${Date.now()}`,
           subjectId: activeFocus.subjectId,
           subjectName: activeFocus.subjectName,
           taskTitle: activeFocus.taskTitle,
           targetDurationMinutes: Math.round(activeFocus.totalDurationSeconds / 60),
-          actualDurationSeconds: Math.max(60, elapsedSeconds),
+          actualDurationSeconds: productiveSeconds,
           breakDurationMinutes: Math.round(activeFocus.totalBreakSeconds / 60),
-          startedAt: new Date(Date.now() - elapsedSeconds * 1000).toISOString(),
+          startedAt: new Date(Date.now() - activeFocus.focusedSeconds * 1000).toISOString(),
           completedAt: new Date().toISOString(),
           interruptedCount: activeFocus.interruptedCount,
           interruptionMinutes: Math.round(activeFocus.interruptionSeconds / 60),
-          preset: activeFocus.preset,
-          rating: completed ? 5 : 3
+          preset: activeFocus.preset
         }
         setFocusSessions((prev) => [newSession, ...prev])
 
-        setTasks((prev) =>
-          prev.map((t) => {
-            if (t.title === activeFocus.taskTitle && t.date === getTodayDateString()) {
-              return { ...t, status: 'completed', completedAt: new Date().toTimeString().slice(0, 5) }
-            }
-            return t
-          })
-        )
+        // A planned task is only marked done once its focus block reached the break.
+        if (activeFocus.isBreak) {
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.title === activeFocus.taskTitle && t.date === getTodayDateString()) {
+                return { ...t, status: 'completed', completedAt: new Date().toTimeString().slice(0, 5) }
+              }
+              return t
+            })
+          )
+        }
       }
     }
 
     soundManager.stopAmbient()
-    setActiveFocus({
-      isActive: false,
-      isPaused: false,
-      isBreak: false,
-      subjectId: '',
-      subjectName: '',
-      taskTitle: '',
-      preset: '45-10',
-      totalDurationSeconds: 45 * 60,
-      remainingSeconds: 45 * 60,
-      breakRemainingSeconds: 10 * 60,
-      totalBreakSeconds: 10 * 60,
-      interruptedCount: 0,
-      interruptionSeconds: 0
-    })
+    setActiveFocus(idleFocusState)
   }, [activeFocus])
 
   // Timer Tick effect
@@ -608,12 +667,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return {
               ...prev,
               remainingSeconds: 0,
+              focusedSeconds: prev.focusedSeconds + 1,
               isBreak: true
             }
           }
           return {
             ...prev,
-            remainingSeconds: prev.remainingSeconds - 1
+            remainingSeconds: prev.remainingSeconds - 1,
+            focusedSeconds: prev.focusedSeconds + 1
           }
         } else {
           if (prev.breakRemainingSeconds <= 1) {
@@ -734,57 +795,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Summary calculations
   const summary: ProductivitySummary = useMemo(() => {
-    const todayStr = getTodayDateString()
-
-    const todaySessions = focusSessions.filter((s) => s.startedAt.startsWith(todayStr))
-    const sessionMinutes = Math.round(
-      todaySessions.reduce((acc, s) => acc + s.actualDurationSeconds, 0) / 60
-    )
-
-    const completedTasks = tasks.filter((t) => t.date === todayStr && t.status === 'completed')
-    const completedTaskMinutes = completedTasks.reduce((acc, t) => acc + t.durationMinutes, 0)
-
-    const totalProductiveMinutes = Math.max(sessionMinutes, completedTaskMinutes)
-
-    const todayDistractions = distractionLogs.filter((d) => d.timestamp.startsWith(todayStr))
-    const totalWastedMinutes = todayDistractions.reduce((acc, d) => acc + d.minutesLost, 0)
-
-    const preventedCount = todayDistractions.filter((d) => d.preventedByShield).length
-    const baselineSaved = Math.round(totalProductiveMinutes * 0.35)
-    const shieldSaved = preventedCount * 25
-    const totalSavedMinutes = Math.max(30, baselineSaved + shieldSaved)
-
     const dailyTargetMinutes = profile.targetDailyStudyHours * 60
-    const dailyGoalAdherencePercent = Math.min(
-      100,
-      Math.round((totalProductiveMinutes / dailyTargetMinutes) * 100)
-    )
 
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    const weeklyTrend = days.map((day, idx) => {
-      const factor = idx === 6 ? 0.9 : 0.75 + (idx % 3) * 0.15
-      const prodM = Math.round(totalProductiveMinutes * factor) || 210
-      const wasteM = Math.round(totalWastedMinutes * (1.2 - idx * 0.08)) || 35
+    const realLosses = distractionLogs.filter((d) => !d.preventedByShield && d.minutesLost > 0)
+    const avgMinutesLostPerDistraction =
+      realLosses.length > 0 ? realLosses.reduce((a, d) => a + d.minutesLost, 0) / realLosses.length : 0
+
+    const statsForDate = (dateStr: string) => {
+      const daySessions = focusSessions.filter((s) => getLocalDateOf(s.startedAt) === dateStr)
+      const sessionMinutes = daySessions.reduce((acc, s) => acc + s.actualDurationSeconds, 0) / 60
+
+      // Tasks ticked off manually (without a timer session) still represent study the user reported.
+      const sessionTitles = new Set(daySessions.map((s) => s.taskTitle))
+      const manualTaskMinutes = tasks
+        .filter((t) => t.date === dateStr && t.status === 'completed' && !sessionTitles.has(t.title))
+        .reduce((acc, t) => acc + t.durationMinutes, 0)
+
+      const dayDistractions = distractionLogs.filter((d) => getLocalDateOf(d.timestamp) === dateStr)
+      const wastedMinutes = dayDistractions
+        .filter((d) => !d.preventedByShield)
+        .reduce((acc, d) => acc + d.minutesLost, 0)
+      const preventedCount = dayDistractions.filter((d) => d.preventedByShield).length
+
       return {
-        day,
-        productiveMinutes: prodM,
-        wastedMinutes: wasteM,
+        sessions: daySessions.length,
+        productiveMinutes: Math.round(sessionMinutes + manualTaskMinutes),
+        wastedMinutes: Math.round(wastedMinutes),
+        savedMinutes: Math.round(preventedCount * avgMinutesLostPerDistraction)
+      }
+    }
+
+    const today = statsForDate(getTodayDateString())
+
+    const weeklyTrend = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date()
+      date.setDate(date.getDate() - (6 - i))
+      const dateStr = toLocalDateString(date)
+      const stats = statsForDate(dateStr)
+      return {
+        day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        date: dateStr,
+        productiveMinutes: stats.productiveMinutes,
+        wastedMinutes: stats.wastedMinutes,
         goalMinutes: dailyTargetMinutes
       }
     })
 
+    const weekProductive = weeklyTrend.reduce((a, d) => a + d.productiveMinutes, 0)
+    const weekWasted = weeklyTrend.reduce((a, d) => a + d.wastedMinutes, 0)
+    const focusScorePercent =
+      weekProductive + weekWasted > 0 ? Math.round((weekProductive / (weekProductive + weekWasted)) * 100) : 0
+
+    const averageSessionMinutes =
+      focusSessions.length > 0
+        ? Math.round(focusSessions.reduce((a, s) => a + s.actualDurationSeconds, 0) / focusSessions.length / 60)
+        : 0
+
     return {
-      totalProductiveMinutes,
-      totalWastedMinutes,
-      totalSavedMinutes,
-      sessionsCompletedToday: todaySessions.length,
-      dailyGoalAdherencePercent,
-      weeklyTrend
+      totalProductiveMinutes: today.productiveMinutes,
+      totalWastedMinutes: today.wastedMinutes,
+      totalSavedMinutes: today.savedMinutes,
+      sessionsCompletedToday: today.sessions,
+      dailyGoalAdherencePercent:
+        dailyTargetMinutes > 0 ? Math.min(100, Math.round((today.productiveMinutes / dailyTargetMinutes) * 100)) : 0,
+      weeklyTrend,
+      focusScorePercent,
+      averageSessionMinutes,
+      streakDays,
+      totalSessionsAllTime: focusSessions.length,
+      hasActivity: focusSessions.length > 0 || distractionLogs.length > 0 || tasks.some((t) => t.status === 'completed')
     }
-  }, [focusSessions, tasks, distractionLogs, profile.targetDailyStudyHours])
+  }, [focusSessions, tasks, distractionLogs, profile.targetDailyStudyHours, streakDays])
 
   // Data management
-  const resetToDemoData = () => {
+  const resetAllData = () => {
     setProfile(initialProfile)
     setSubjects(initialSubjects)
     setTasks(initialTasks)
@@ -792,6 +876,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDistractionLogs(initialDistractionLogs)
     setDistractionItems(initialDistractionItems)
     setSettings(initialSettings)
+    setActiveFocus(idleFocusState)
+    setShowOnboardingModal(true)
   }
 
   const clearAllData = () => {
@@ -842,6 +928,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateProfile,
         subjects,
         addSubject,
+        addSubjects,
         deleteSubject,
         updateSubject,
         tasks,
@@ -869,7 +956,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         settings,
         updateSettings,
         summary,
-        resetToDemoData,
+        resetAllData,
         clearAllData,
         exportDataJSON,
         importDataJSON,

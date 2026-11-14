@@ -17,6 +17,7 @@ export const OnboardingModal: React.FC = () => {
     profile,
     updateProfile,
     subjects,
+    addSubjects,
     generateSmartTimetable,
     setActiveTab
   } = useApp()
@@ -61,8 +62,15 @@ export const OnboardingModal: React.FC = () => {
   }
 
   const handleFinish = () => {
+    const pool = addSubjects(
+      defaultSubjectPool
+        .filter((s) => selectedSubjects.includes(s.name))
+        .map((s) => ({ ...s, weeklyGoalHours: 0 }))
+    )
+    const chosenIds = pool.filter((s) => selectedSubjects.includes(s.name)).map((s) => s.id)
+
     updateProfile({
-      name: name.trim() || 'Aarav Sharma',
+      name: name.trim() || 'Student',
       gradeOrExam,
       targetDailyStudyHours: dailyHours,
       preferredFocusMinutes: focusDuration,
@@ -78,7 +86,8 @@ export const OnboardingModal: React.FC = () => {
       endHour: Math.min(22, 16 + Math.ceil(dailyHours)),
       focusDurationMinutes: focusDuration,
       breakDurationMinutes: breakDuration,
-      selectedSubjectIds: []
+      selectedSubjectIds: chosenIds,
+      subjectPool: pool
     })
 
     setShowOnboardingModal(false)

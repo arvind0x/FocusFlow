@@ -16,9 +16,20 @@ export function formatSecondsToMMSS(seconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
+export function toLocalDateString(date: Date): string {
+  const y = date.getFullYear()
+  const m = (date.getMonth() + 1).toString().padStart(2, '0')
+  const d = date.getDate().toString().padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 export function getTodayDateString(): string {
-  const d = new Date()
-  return d.toISOString().split('T')[0]
+  return toLocalDateString(new Date())
+}
+
+export function getLocalDateOf(timestamp: string): string {
+  const parsed = new Date(timestamp)
+  return Number.isNaN(parsed.getTime()) ? timestamp.slice(0, 10) : toLocalDateString(parsed)
 }
 
 export function getFormattedToday(): string {

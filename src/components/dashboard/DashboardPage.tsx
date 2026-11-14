@@ -103,10 +103,10 @@ export const DashboardPage: React.FC = () => {
         <StatsCard
           title="Time Saved"
           value={formatMinutesToHours(summary.totalSavedMinutes)}
-          subtext="Reclaimed by 45–10 rhythm"
+          subtext="Distractions you blocked today"
           icon={ShieldCheck}
           color="emerald"
-          badge="+35% Efficiency"
+          badge="Blocked"
         />
 
         <StatsCard

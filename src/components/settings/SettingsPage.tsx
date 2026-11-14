@@ -26,7 +26,7 @@ export const SettingsPage: React.FC = () => {
     updateProfile,
     settings,
     updateSettings,
-    resetToDemoData,
+    resetAllData,
     exportDataJSON,
     importDataJSON,
     setShowOnboardingModal
@@ -383,13 +383,14 @@ export const SettingsPage: React.FC = () => {
 
           <button
             onClick={() => {
-              resetToDemoData()
-              showToast('Restored sample demonstration data!')
+              if (!window.confirm('Erase all your sessions, tasks and stats and start fresh?')) return
+              resetAllData()
+              showToast('All data cleared. Starting fresh.')
             }}
-            className="flex items-center justify-center space-x-2 p-3 rounded-xl bg-[#131314] border border-[#2e3135] hover:border-[#3c4043] text-[#81c995] transition font-medium"
+            className="flex items-center justify-center space-x-2 p-3 rounded-xl bg-[#131314] border border-[#2e3135] hover:border-[#3c4043] text-[#f28b82] transition font-medium"
           >
-            <RotateCcw className="w-4 h-4 text-[#81c995]" />
-            <span>Load Demo Data</span>
+            <RotateCcw className="w-4 h-4 text-[#f28b82]" />
+            <span>Start Fresh</span>
           </button>
         </div>
 
