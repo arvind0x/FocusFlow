@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Google AI Studio Inspired Dark Palette */
+    --bg-primary: #131314;
+    --bg-secondary: #0e0e10;
+    --bg-card: #1e1f20;
+    --bg-card-hover: #282a2d;
+    --bg-elevated: #2b2c30;
+    --border-color: #333538;
+    --border-subtle: #27282b;
+    --text-primary: #e3e3e3;
+    --text-secondary: #9aa0a6;
+    --text-muted: #5f6368;
+    --google-blue: #8ab4f8;
+    --google-blue-hover: #aecbfa;
+    --accent-green: #81c995;
+    --accent-red: #f28b82;
+    --accent-amber: #fdd663;
+  }
+
+  .light {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f1f3f4;
+    --bg-elevated: #e8eaed;
+    --border-color: #dadce0;
+    --border-subtle: #e8eaed;
+    --text-primary: #202124;
+    --text-secondary: #5f6368;
+    --text-muted: #80868b;
+    --google-blue: #1a73e8;
+    --google-blue-hover: #1557b0;
+    --accent-green: #1e8e3e;
+    --accent-red: #d93025;
+    --accent-amber: #f29900;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Google Sans', 'Inter', 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  letter-spacing: -0.01em;
+}
+
+/* Crisp Google AI Studio scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(154, 160, 166, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(154, 160, 166, 0.45);
+}
+
+/* Animated Graphs Keyframes */
+@keyframes barGrowUp {
+  0% {
+    transform: scaleY(0);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes drawPath {
+  0% {
+    stroke-dashoffset: 1000;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fadeInRise {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-bar-grow {
+  transform-origin: bottom;
+  animation: barGrowUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-path-draw {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: drawPath 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-rise {
+  animation: fadeInRise 0.5s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s ease-in-out infinite;
+}
