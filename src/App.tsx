@@ -13,9 +13,10 @@ import { SettingsPage } from './components/settings/SettingsPage'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { LogDistractionModal } from './components/distraction/LogDistractionModal'
 import { TabAwayAlertModal } from './components/focus/TabAwayAlertModal'
+import { LofiPlayer } from './components/focus/LofiPlayer'
 
 const MainContent: React.FC = () => {
-  const { activeTab } = useApp()
+  const { activeTab, activeFocus, settings } = useApp()
 
   // Full-page views
   if (activeTab === 'landing') {
@@ -41,6 +42,7 @@ const MainContent: React.FC = () => {
       <Navbar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12">
+        {activeFocus.isActive && !activeFocus.isBreak && settings.ambientSound === 'lofi' && <LofiPlayer />}
         {activeTab === 'dashboard' && <DashboardPage />}
         {activeTab === 'timetable' && <TimetablePage />}
         {activeTab === 'focus' && <FocusPage />}

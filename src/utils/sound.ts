@@ -94,14 +94,10 @@ class SoundManager {
       let lastOut = 0.0
       for (let i = 0; i < bufferSize; i++) {
         const white = Math.random() * 2 - 1
-        if (type === 'rain' || type === 'waves') {
+        if (type === 'rain' || type === 'waves' || type === 'lofi') {
           // Brown noise filter approximation (warm low-frequency hum like heavy rain)
           lastOut = (lastOut + 0.02 * white) / 1.02
           data[i] = lastOut * 3.5
-        } else if (type === 'lofi') {
-          // Low-pass filtered noise with slight pulsation
-          lastOut = (lastOut + 0.04 * white) / 1.04
-          data[i] = lastOut * 2.5
         } else {
           // White noise
           data[i] = white * 0.25
