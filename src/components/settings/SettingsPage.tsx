@@ -66,7 +66,7 @@ export const SettingsPage: React.FC = () => {
 
   const handleTestSound = () => {
     soundManager.playStartChime()
-    showToast('Playing gentle study chime')
+    showToast('Playing focus start sound')
   }
 
   const handleTestAlarm = () => {
@@ -281,7 +281,7 @@ export const SettingsPage: React.FC = () => {
               <div>
                 <span className="font-medium text-[#e3e3e3] block">Audio Fanfares & Cues</span>
                 <span className="text-[11px] text-[#9aa0a6]">
-                  Web Audio synthesised chimes on session start and completion
+                  Audio cues on session start and completion
                 </span>
               </div>
               <input

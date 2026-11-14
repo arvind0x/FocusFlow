@@ -86,9 +86,9 @@ export const FocusPage: React.FC = () => {
     const sub = subjects.find((s) => s.id === selectedSubjectId) || subjects[0]
 
     startFocusSession({
-      subjectId: sub.id,
-      subjectName: sub.name,
-      taskTitle: customTaskTitle.trim() || `${sub.name}: Focused Study Session`,
+      subjectId: sub?.id || '',
+      subjectName: sub?.name || 'General study',
+      taskTitle: customTaskTitle.trim() || `${sub?.name || 'General study'}: Focused Study Session`,
       focusMinutes: focusM,
       breakMinutes: breakM,
       preset
