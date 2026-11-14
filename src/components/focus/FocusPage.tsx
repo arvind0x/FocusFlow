@@ -86,9 +86,9 @@ export const FocusPage: React.FC = () => {
     const sub = subjects.find((s) => s.id === selectedSubjectId) || subjects[0]
 
     startFocusSession({
-      subjectId: sub.id,
-      subjectName: sub.name,
-      taskTitle: customTaskTitle.trim() || `${sub.name}: Focused Study Session`,
+      subjectId: sub?.id || '',
+      subjectName: sub?.name || 'General study',
+      taskTitle: customTaskTitle.trim() || `${sub?.name || 'General study'}: Focused Study Session`,
       focusMinutes: focusM,
       breakMinutes: breakM,
       preset
@@ -130,7 +130,7 @@ export const FocusPage: React.FC = () => {
   return (
     <div
       className={`space-y-6 animate-fade-rise transition-all pb-16 text-[#e3e3e3] ${
-        isFullscreen ? 'fixed inset-0 z-50 bg-[#131314] p-6 overflow-y-auto' : ''
+        isFullscreen ? 'bg-[#131314]' : ''
       }`}
     >
       {/* Top Header */}
@@ -165,7 +165,7 @@ export const FocusPage: React.FC = () => {
               <option value="none" className="bg-[#1e1f20]">Mute</option>
               <option value="rain" className="bg-[#1e1f20]">🌧️ Deep Rain</option>
               <option value="whitenoise" className="bg-[#1e1f20]">📻 Pure White Noise</option>
-              <option value="lofi" className="bg-[#1e1f20]">🎧 Lo-Fi Hum</option>
+              <option value="lofi" className="bg-[#1e1f20]">🎧 Lo-Fi & Deep Rain</option>
               <option value="waves" className="bg-[#1e1f20]">🌊 Ocean Waves</option>
             </select>
           </div>

@@ -1,5 +1,4 @@
 // Web Audio API generator for sound effects and distraction-free ambient noise
-// 100% client-side, zero external audio files needed
 
 class SoundManager {
   private ctx: AudioContext | null = null
@@ -17,32 +16,11 @@ class SoundManager {
     return this.ctx
   }
 
-  // Play gentle bell for session start
   playStartChime() {
-    try {
-      const ctx = this.getContext()
-      const now = ctx.currentTime
-
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(523.25, now) // C5
-      osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.15) // E5
-      osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.35) // G5
-
-      gain.gain.setValueAtTime(0.01, now)
-      gain.gain.linearRampToValueAtTime(0.2, now + 0.05)
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2)
-
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-
-      osc.start(now)
-      osc.stop(now + 1.2)
-    } catch {
-      // Audio not permitted yet
-    }
+    const audio = new Audio('/focus-start.mp3')
+    void audio.play().catch(() => {
+      // Audio may be blocked by the browser.
+    })
   }
 
   // Play celebratory chime for completed study session
@@ -116,14 +94,10 @@ class SoundManager {
       let lastOut = 0.0
       for (let i = 0; i < bufferSize; i++) {
         const white = Math.random() * 2 - 1
-        if (type === 'rain' || type === 'waves') {
+        if (type === 'rain' || type === 'waves' || type === 'lofi') {
           // Brown noise filter approximation (warm low-frequency hum like heavy rain)
           lastOut = (lastOut + 0.02 * white) / 1.02
           data[i] = lastOut * 3.5
-        } else if (type === 'lofi') {
-          // Low-pass filtered noise with slight pulsation
-          lastOut = (lastOut + 0.04 * white) / 1.04
-          data[i] = lastOut * 2.5
         } else {
           // White noise
           data[i] = white * 0.25

@@ -783,7 +783,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSettings((prev) => {
       const next = { ...prev, ...updates }
       if (updates.ambientSound !== undefined || updates.ambientVolume !== undefined) {
-        if (next.ambientSound !== 'none' && activeFocus.isActive && !activeFocus.isPaused) {
+        if (next.ambientSound !== 'none' && activeFocus.isActive && !activeFocus.isPaused && !activeFocus.isBreak) {
           soundManager.startAmbient(next.ambientSound, next.ambientVolume)
         } else {
           soundManager.stopAmbient()
