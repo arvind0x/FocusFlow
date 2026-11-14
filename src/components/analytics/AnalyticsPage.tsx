@@ -33,7 +33,11 @@ export const AnalyticsPage: React.FC = () => {
     }
   })
 
-  const totalSubjectMinutes = subjectStats.reduce((acc, s) => acc + s.totalMinutes, 0) || 1
+  const totalTrackedMinutes = subjectStats.reduce((acc, s) => acc + s.totalMinutes, 0)
+  const totalSubjectMinutes = totalTrackedMinutes || 1
+  const highPriorityMinutes = subjectStats
+    .filter((s) => s.priority === 'high')
+    .reduce((acc, s) => acc + s.totalMinutes, 0)
 
   const filteredSessions = focusSessions.filter((s) =>
     selectedSubjectFilter === 'all' ? true : s.subjectId === selectedSubjectFilter
@@ -80,7 +84,7 @@ export const AnalyticsPage: React.FC = () => {
   const areaD = `${pathD} L ${trendPoints[trendPoints.length - 1].x} ${chartHeight - paddingY} L ${trendPoints[0].x} ${chartHeight - paddingY} Z`
 
   // Radial Progress parameters
-  const scorePercent = 91
+  const scorePercent = summary.focusScorePercent
   const radius = 42
   const circumference = 2 * Math.PI * radius
   const strokeDashoffset = circumference - (scorePercent / 100) * circumference
@@ -187,7 +191,7 @@ export const AnalyticsPage: React.FC = () => {
             </span>
           </div>
           <div className="text-3xl font-bold font-mono text-[#e3e3e3] tracking-tight">
-            91%
+            {summary.hasActivity ? `${summary.focusScorePercent}%` : '—'}
           </div>
           <p className="text-[11px] text-[#9aa0a6] mt-1.5 flex items-center space-x-1">
             <span className="text-[#fdd663] font-semibold">●</span>
@@ -403,7 +407,7 @@ export const AnalyticsPage: React.FC = () => {
             <div className="absolute text-center">
               <span className="text-2xl font-bold font-mono text-[#e3e3e3]">{scorePercent}%</span>
               <span className="block text-[10px] text-[#9aa0a6] uppercase tracking-wider font-mono">
-                Optimal
+                {!summary.hasActivity ? 'No data yet' : scorePercent >= 80 ? 'Strong' : scorePercent >= 60 ? 'Steady' : 'Needs focus'}
               </span>
             </div>
           </div>
@@ -411,11 +415,17 @@ export const AnalyticsPage: React.FC = () => {
           <div className="p-3 rounded-xl bg-[#131314] border border-[#2e3135] text-xs space-y-1.5 text-[#9aa0a6]">
             <div className="flex items-center justify-between text-[#e3e3e3]">
               <span>Streak Health</span>
-              <span className="text-[#81c995] font-mono font-medium">Excellent</span>
+              <span className="text-[#81c995] font-mono font-medium">
+                {summary.streakDays === 0
+                  ? 'No streak yet'
+                  : `${summary.streakDays} day${summary.streakDays === 1 ? '' : 's'}`}
+              </span>
             </div>
             <div className="flex items-center justify-between text-[#e3e3e3]">
-              <span>Average Pomodoro Duration</span>
-              <span className="font-mono text-[#8ab4f8]">45 min</span>
+              <span>Average Session Duration</span>
+              <span className="font-mono text-[#8ab4f8]">
+                {summary.totalSessionsAllTime > 0 ? `${summary.averageSessionMinutes} min` : '—'}
+              </span>
             </div>
             <div className="flex items-center justify-between text-[#e3e3e3]">
               <span>Daily Adherence</span>
@@ -468,7 +478,10 @@ export const AnalyticsPage: React.FC = () => {
           </div>
 
           <p className="text-[11px] text-[#9aa0a6] mt-6 pt-3 border-t border-[#2e3135] leading-relaxed">
-            💡 <strong>Balance Metric:</strong> High-priority syllabus areas (e.g. Physics & Math) are currently occupying 70% of total focus time.
+            <strong>Balance Metric:</strong>{' '}
+            {highPriorityMinutes > 0 || totalTrackedMinutes > 0
+              ? `High-priority subjects account for ${Math.round((highPriorityMinutes / totalSubjectMinutes) * 100)}% of your tracked focus time.`
+              : 'Complete a focus session to see how your time splits across subjects.'}
           </p>
         </div>
 
