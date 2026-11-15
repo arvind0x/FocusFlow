@@ -16,7 +16,15 @@ import { TabAwayAlertModal } from './components/focus/TabAwayAlertModal'
 import { LofiPlayer } from './components/focus/LofiPlayer'
 
 const MainContent: React.FC = () => {
-  const { activeTab, activeFocus, settings } = useApp()
+  const { activeTab, activeFocus, settings, authUser, authReady } = useApp()
+
+  if (!authReady) {
+    return <main className="min-h-screen bg-[#131314] text-[#e3e3e3] flex items-center justify-center" role="status">Loading account...</main>
+  }
+
+  if (!authUser.isAuthenticated && activeTab !== 'landing') {
+    return <main className="min-h-screen bg-[#131314] text-[#e3e3e3]"><LoginPage /></main>
+  }
 
   // Full-page views
   if (activeTab === 'landing') {

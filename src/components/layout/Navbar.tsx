@@ -31,7 +31,9 @@ export const Navbar: React.FC = () => {
     setShowOnboardingModal,
     handleDistractionTabClick,
     maintenanceToast,
-    setMaintenanceToast
+    setMaintenanceToast,
+    authUser,
+    logout
   } = useApp()
 
   const navItems: { id: TabType; label: string; icon: React.ReactNode; badge?: string; isDistraction?: boolean }[] = [
@@ -190,13 +192,20 @@ export const Navbar: React.FC = () => {
                 )}
               </button>
 
-              {/* Sign In Button */}
+              {/* Account Button */}
               <button
-                onClick={() => setActiveTab('login')}
+                onClick={() => {
+                  if (authUser.isAuthenticated) {
+                    void logout().catch(() => window.alert('Could not sign out. Please try again.'))
+                  } else {
+                    setActiveTab('login')
+                  }
+                }}
+                aria-label={authUser.isAuthenticated ? 'Sign out' : 'Sign in'}
                 className="flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-[#1e1f20] border border-[#333538] hover:border-[#8ab4f8] text-[#e3e3e3] hover:text-[#8ab4f8] transition"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Sign In</span>
+                <span className="hidden sm:inline">{authUser.isAuthenticated ? 'Sign Out' : 'Sign In'}</span>
               </button>
 
               {/* Profile Avatar / Setup */}
