@@ -83,7 +83,7 @@ class SoundManager {
   }
 
   // Start continuous ambient noise (Brownian noise / Rain simulation)
-  startAmbient(type: 'rain' | 'whitenoise' | 'lofi' | 'waves', volume = 0.3) {
+  startAmbient(type: 'rain' | 'whitenoise' | 'waves', volume = 0.3) {
     this.stopAmbient()
     try {
       const ctx = this.getContext()
@@ -94,7 +94,7 @@ class SoundManager {
       let lastOut = 0.0
       for (let i = 0; i < bufferSize; i++) {
         const white = Math.random() * 2 - 1
-        if (type === 'rain' || type === 'waves' || type === 'lofi') {
+        if (type === 'rain' || type === 'waves') {
           // Brown noise filter approximation (warm low-frequency hum like heavy rain)
           lastOut = (lastOut + 0.02 * white) / 1.02
           data[i] = lastOut * 3.5

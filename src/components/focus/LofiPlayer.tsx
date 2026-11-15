@@ -102,8 +102,8 @@ export function LofiPlayer() {
         <div ref={hostRef} />
       </div>
       <div className="space-y-2 text-sm text-[#e3e3e3]">
-        <p className="font-semibold">Lo-fi & deep rain</p>
-        <p className="text-xs leading-relaxed text-[#bdc1c6]">1 A.M Study Session by Lofi Girl, with rain layered underneath. If playback does not start automatically, press play on the video.</p>
+        <p className="font-semibold">Lo-fi music</p>
+        <p className="text-xs leading-relaxed text-[#bdc1c6]">1 A.M Study Session by Lofi Girl. If playback does not start automatically, press play on the video.</p>
         {error && <p role="alert" className="text-xs text-[#f28b82]">YouTube could not play this video here. It may require sign-in or be unavailable in this environment.</p>}
         <a className="inline-block text-xs text-[#8ab4f8] underline underline-offset-4" href="https://www.youtube.com/watch?v=lTRiuFIWV54" target="_blank" rel="noreferrer">Open on YouTube</a>
       </div>
