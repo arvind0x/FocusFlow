@@ -27,6 +27,8 @@ import {
 } from '../data/defaults'
 import { getTodayDateString, getLocalDateOf, toLocalDateString } from '../utils/formatters'
 import { soundManager } from '../utils/sound'
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut, updateProfile as updateFirebaseProfile } from 'firebase/auth'
+import { firebaseAuth } from '../firebase'
 
 const STORAGE_KEY_PREFIX = 'focusflow_v2_'
 
@@ -181,8 +183,10 @@ interface AppContextType {
 
   // Auth & GitHub Integration
   authUser: AuthUser
-  login: (email: string, name?: string, provider?: 'email' | 'github' | 'demo') => void
-  logout: () => void
+  authReady: boolean
+  login: (email: string, password: string, signUp: boolean, name?: string) => Promise<void>
+  loginAsGuest: (name: string) => Promise<void>
+  logout: () => Promise<void>
   githubSync: GitHubSyncState
   connectGitHub: (username: string, repoName: string) => void
   disconnectGitHub: () => void
@@ -207,18 +211,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY_PREFIX}tab`, tab)
   }
 
-  // Auth User
-  const [authUser, setAuthUser] = useState<AuthUser>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}auth`)
-    return saved
-      ? JSON.parse(saved)
-      : {
-          isAuthenticated: true,
-          email: 'student@demo.local',
-          name: 'Demo Student',
-          provider: 'demo'
-        }
+  // Firebase is the source of truth for authentication, not the previous demo session.
+  const [authUser, setAuthUser] = useState<AuthUser>({
+    isAuthenticated: false,
+    email: '',
+    name: '',
+    provider: 'email'
   })
+  const [authReady, setAuthReady] = useState(false)
+
+  useEffect(() => {
+    if (!firebaseAuth) {
+      setAuthReady(true)
+      return
+    }
+    return onAuthStateChanged(firebaseAuth, (user) => {
+      setAuthUser(user ? {
+        isAuthenticated: true,
+        email: user.email || '',
+        name: user.displayName || user.email?.split('@')[0] || 'Student',
+        provider: user.isAnonymous ? 'guest' : 'email'
+      } : { isAuthenticated: false, email: '', name: '', provider: 'email' })
+      setAuthReady(true)
+    })
+  }, [])
 
   // GitHub Sync State (Default: not connected to satisfy requirement that distraction field is under maintenance until GitHub is connected)
   const [githubSync, setGithubSync] = useState<GitHubSyncState>(() => {
@@ -285,10 +301,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Persistence effects
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY_PREFIX}auth`, JSON.stringify(authUser))
-  }, [authUser])
-
-  useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY_PREFIX}github`, JSON.stringify(githubSync))
   }, [githubSync])
 
@@ -329,24 +341,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [settings])
 
   // Auth handlers
-  const login = (email: string, name = 'Student User', provider: 'email' | 'github' | 'demo' = 'email') => {
+  const login = async (email: string, password: string, signUp: boolean, name?: string) => {
+    if (!firebaseAuth) throw new Error('Firebase is not configured. Please contact the app administrator.')
+    const result = signUp
+      ? await createUserWithEmailAndPassword(firebaseAuth, email, password)
+      : await signInWithEmailAndPassword(firebaseAuth, email, password)
+    if (signUp && name?.trim()) {
+      try {
+        await updateFirebaseProfile(result.user, { displayName: name.trim() })
+      } catch {
+        // Account creation already succeeded; a profile update must not report it as a failed signup.
+      }
+    }
     setAuthUser({
       isAuthenticated: true,
-      email,
-      name,
-      provider
+      email: result.user.email || '',
+      name: result.user.displayName || email.split('@')[0],
+      provider: 'email'
     })
-    updateProfile({ name })
     setActiveTab('dashboard')
   }
 
-  const logout = () => {
-    setAuthUser({
-      isAuthenticated: false,
-      email: '',
-      name: '',
-      provider: 'demo'
-    })
+  const loginAsGuest = async (name: string) => {
+    if (!firebaseAuth) throw new Error('Firebase is not configured. Please contact the app administrator.')
+    const displayName = name.trim()
+    if (!displayName) throw new Error('Please enter your name.')
+    const result = await signInAnonymously(firebaseAuth)
+    try {
+      await updateFirebaseProfile(result.user, { displayName })
+    } catch {
+      await signOut(firebaseAuth)
+      throw new Error('Could not save your guest name. Please try again.')
+    }
+    setProfile((previous) => ({ ...previous, name: displayName }))
+    setAuthUser({ isAuthenticated: true, name: displayName, provider: 'guest' })
+    setActiveTab('dashboard')
+  }
+
+  const logout = async () => {
+    if (!firebaseAuth) return
+    await signOut(firebaseAuth)
     setActiveTab('login')
   }
 
@@ -912,7 +946,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (parsed.distractionItems) setDistractionItems(parsed.distractionItems)
       if (parsed.settings) setSettings(parsed.settings)
       if (parsed.githubSync) setGithubSync(parsed.githubSync)
-      if (parsed.authUser) setAuthUser(parsed.authUser)
       return true
     } catch {
       return false
@@ -967,7 +1000,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tabAwayNotice,
         dismissTabAwayNotice,
         authUser,
+        authReady,
         login,
+        loginAsGuest,
         logout,
         githubSync,
         connectGitHub,

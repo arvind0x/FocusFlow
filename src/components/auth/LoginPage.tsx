@@ -4,12 +4,11 @@ import {
   Mail,
   ArrowRight,
   ShieldCheck,
-  CheckCircle2,
   Sparkles,
-  Timer,
   AlertCircle
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
+import { GuestAccessForm } from './GuestAccessForm'
 
 export const LoginPage: React.FC = () => {
   const { login, setActiveTab } = useApp()
@@ -19,19 +18,34 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState<string>('')
   const [name, setName] = useState<string>('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleEmailAuth = (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim() || !password.trim()) {
+    if (!email.trim() || !password) {
       setErrorMsg('Please enter both email and password.')
       return
     }
-    const displayName = name.trim() || email.split('@')[0]
-    login(email.trim(), displayName, 'email')
-  }
-
-  const handleDemoSignIn = () => {
-    login('student@focusflow.local', 'Demo Student', 'demo')
+    setErrorMsg(null)
+    setSubmitting(true)
+    try {
+      await login(email.trim(), password, isSignUp, name)
+    } catch (error) {
+      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : ''
+      const messages: Record<string, string> = {
+        'auth/invalid-credential': 'Incorrect email or password.',
+        'auth/invalid-email': 'Please enter a valid email address.',
+        'auth/email-already-in-use': 'An account with this email already exists.',
+        'auth/weak-password': 'Please choose a stronger password.',
+        'auth/too-many-requests': 'Too many attempts. Please try again later.',
+        'auth/network-request-failed': 'Could not connect. Check your internet connection and try again.',
+        'auth/operation-not-allowed': 'Email/password sign-in is not enabled in Firebase.',
+        'auth/api-key-not-valid': 'Firebase configuration is invalid. Please contact the app administrator.'
+      }
+      setErrorMsg(messages[String(code)] || (error instanceof Error && !code ? error.message : 'Unable to sign in. Please try again.'))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -69,42 +83,22 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {errorMsg && (
-          <div className="mb-4 p-3 rounded-xl bg-[#f28b82]/10 border border-[#f28b82]/30 flex items-center space-x-2 text-xs text-[#f28b82]">
+          <div role="alert" className="mb-4 p-3 rounded-xl bg-[#f28b82]/10 border border-[#f28b82]/30 flex items-center space-x-2 text-xs text-[#f28b82]">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* Instant Demo Sign-In */}
-        <button
-          type="button"
-          onClick={handleDemoSignIn}
-          className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-[#282a2d] hover:bg-[#333538] text-[#e3e3e3] border border-[#3c4043] hover:border-[#8ab4f8] transition font-medium text-xs shadow-sm mb-4"
-        >
-          <Sparkles className="w-4 h-4 text-[#8ab4f8]" />
-          <span>One-Click Demo Student Access</span>
-        </button>
-
-        {/* Divider */}
-        <div className="relative my-5">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[#2e3135]" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="px-2 bg-[#1e1f20] text-[#5f6368] font-mono">
-              or continue with email
-            </span>
-          </div>
-        </div>
-
         {/* Email & Password Form */}
         <form onSubmit={handleEmailAuth} className="space-y-4">
           {isSignUp && (
             <div>
-              <label className="block text-xs font-medium text-[#9aa0a6] mb-1">
+              <label htmlFor="auth-name" className="block text-xs font-medium text-[#9aa0a6] mb-1">
                 Display Name
               </label>
               <input
+                id="auth-name"
+                autoComplete="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -115,12 +109,14 @@ export const LoginPage: React.FC = () => {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-[#9aa0a6] mb-1">
+            <label htmlFor="auth-email" className="block text-xs font-medium text-[#9aa0a6] mb-1">
               Email Address
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-[#5f6368] absolute left-3 top-2.5" />
               <input
+                id="auth-email"
+                autoComplete="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -132,12 +128,14 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-[#9aa0a6] mb-1">
+            <label htmlFor="auth-password" className="block text-xs font-medium text-[#9aa0a6] mb-1">
               Password
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-[#5f6368] absolute left-3 top-2.5" />
               <input
+                id="auth-password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -150,9 +148,10 @@ export const LoginPage: React.FC = () => {
 
           <button
             type="submit"
-            className="w-full py-2.5 px-4 rounded-xl bg-[#8ab4f8] hover:bg-[#aecbfa] text-[#131314] font-medium text-xs transition flex items-center justify-center space-x-2 shadow-sm"
+            disabled={submitting}
+            className="w-full py-2.5 px-4 rounded-xl bg-[#8ab4f8] hover:bg-[#aecbfa] disabled:opacity-60 text-[#131314] font-medium text-xs transition flex items-center justify-center space-x-2 shadow-sm"
           >
-            <span>{isSignUp ? 'Create Account' : 'Sign In'}</span>
+            <span>{submitting ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </form>
@@ -163,7 +162,7 @@ export const LoginPage: React.FC = () => {
             <span>
               Already have an account?{' '}
               <button
-                onClick={() => setIsSignUp(false)}
+                onClick={() => { setIsSignUp(false); setErrorMsg(null) }}
                 className="text-[#8ab4f8] hover:underline font-medium"
               >
                 Sign in
@@ -173,7 +172,7 @@ export const LoginPage: React.FC = () => {
             <span>
               Don't have an account?{' '}
               <button
-                onClick={() => setIsSignUp(true)}
+                onClick={() => { setIsSignUp(true); setErrorMsg(null) }}
                 className="text-[#8ab4f8] hover:underline font-medium"
               >
                 Create one now
@@ -182,11 +181,13 @@ export const LoginPage: React.FC = () => {
           )}
         </div>
 
+        <GuestAccessForm />
+
         {/* Privacy Note */}
         <div className="mt-6 pt-4 border-t border-[#2e3135] text-center">
           <p className="text-[10px] text-[#5f6368] flex items-center justify-center space-x-1">
             <ShieldCheck className="w-3.5 h-3.5 text-[#81c995]" />
-            <span>100% Client-Side Privacy: Your study data never leaves your device.</span>
+            <span>Firebase handles sign-in. Study data stays in this browser and may be visible to other people using it.</span>
           </p>
         </div>
       </div>
