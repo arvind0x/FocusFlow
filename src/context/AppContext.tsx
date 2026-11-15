@@ -27,7 +27,7 @@ import {
 } from '../data/defaults'
 import { getTodayDateString, getLocalDateOf, toLocalDateString } from '../utils/formatters'
 import { soundManager } from '../utils/sound'
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile as updateFirebaseProfile } from 'firebase/auth'
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut, updateProfile as updateFirebaseProfile } from 'firebase/auth'
 import { firebaseAuth } from '../firebase'
 
 const STORAGE_KEY_PREFIX = 'focusflow_v2_'
@@ -185,6 +185,7 @@ interface AppContextType {
   authUser: AuthUser
   authReady: boolean
   login: (email: string, password: string, signUp: boolean, name?: string) => Promise<void>
+  loginAsGuest: (name: string) => Promise<void>
   logout: () => Promise<void>
   githubSync: GitHubSyncState
   connectGitHub: (username: string, repoName: string) => void
@@ -229,7 +230,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAuthenticated: true,
         email: user.email || '',
         name: user.displayName || user.email?.split('@')[0] || 'Student',
-        provider: 'email'
+        provider: user.isAnonymous ? 'guest' : 'email'
       } : { isAuthenticated: false, email: '', name: '', provider: 'email' })
       setAuthReady(true)
     })
@@ -358,6 +359,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: result.user.displayName || email.split('@')[0],
       provider: 'email'
     })
+    setActiveTab('dashboard')
+  }
+
+  const loginAsGuest = async (name: string) => {
+    if (!firebaseAuth) throw new Error('Firebase is not configured. Please contact the app administrator.')
+    const displayName = name.trim()
+    if (!displayName) throw new Error('Please enter your name.')
+    const result = await signInAnonymously(firebaseAuth)
+    try {
+      await updateFirebaseProfile(result.user, { displayName })
+    } catch {
+      await signOut(firebaseAuth)
+      throw new Error('Could not save your guest name. Please try again.')
+    }
+    setProfile((previous) => ({ ...previous, name: displayName }))
+    setAuthUser({ isAuthenticated: true, name: displayName, provider: 'guest' })
     setActiveTab('dashboard')
   }
 
@@ -985,6 +1002,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         authUser,
         authReady,
         login,
+        loginAsGuest,
         logout,
         githubSync,
         connectGitHub,

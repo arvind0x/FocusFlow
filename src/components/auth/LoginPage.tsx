@@ -8,6 +8,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
+import { GuestAccessForm } from './GuestAccessForm'
 
 export const LoginPage: React.FC = () => {
   const { login, setActiveTab } = useApp()
@@ -179,6 +180,8 @@ export const LoginPage: React.FC = () => {
             </span>
           )}
         </div>
+
+        <GuestAccessForm />
 
         {/* Privacy Note */}
         <div className="mt-6 pt-4 border-t border-[#2e3135] text-center">

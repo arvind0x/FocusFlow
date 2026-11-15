@@ -89,7 +89,7 @@ export interface AuthUser {
   isAuthenticated: boolean
   email?: string
   name: string
-  provider: 'email' | 'github' | 'demo'
+  provider: 'email' | 'github' | 'demo' | 'guest'
 }
 
 export interface AppSettings {
