@@ -165,7 +165,7 @@ export const FocusPage: React.FC = () => {
               <option value="none" className="bg-[#1e1f20]">Mute</option>
               <option value="rain" className="bg-[#1e1f20]">🌧️ Deep Rain</option>
               <option value="whitenoise" className="bg-[#1e1f20]">📻 Pure White Noise</option>
-              <option value="lofi" className="bg-[#1e1f20]">🎧 Lo-Fi & Deep Rain</option>
+              <option value="lofi" className="bg-[#1e1f20]">🎧 Lo-Fi Music</option>
               <option value="waves" className="bg-[#1e1f20]">🌊 Ocean Waves</option>
             </select>
           </div>
