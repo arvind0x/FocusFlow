@@ -54,7 +54,7 @@ export function GuestAccessForm() {
           {submitting ? 'Please wait...' : 'Continue as guest'} <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </form>
-      <p className="mt-3 text-xs leading-relaxed text-[#9aa0a6]">Guest sessions cannot be recovered by name after sign-out or clearing browser data. Study data is stored in this browser and is not private from other people using it.</p>
+      <p className="mt-3 text-xs leading-relaxed text-[#9aa0a6]">Guest sessions cannot be recovered by name after sign-out or clearing browser data. Your study data syncs to this guest account, and existing browser data is imported only after you confirm.</p>
     </section>
   )
 }

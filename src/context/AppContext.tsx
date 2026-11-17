@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   StudentProfile,
   Subject,
@@ -11,7 +11,8 @@ import {
   TaskStatus,
   PriorityLevel,
   GitHubSyncState,
-  AuthUser
+  AuthUser,
+  FocusFlowSnapshot
 } from '../types'
 import {
   initialProfile,
@@ -29,6 +30,7 @@ import { getTodayDateString, getLocalDateOf, toLocalDateString } from '../utils/
 import { soundManager } from '../utils/sound'
 import { createUserWithEmailAndPassword, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut, updateProfile as updateFirebaseProfile } from 'firebase/auth'
 import { firebaseAuth } from '../firebase'
+import { deleteRemoteState, loadRemoteState, saveRemoteState } from '../utils/remoteStore'
 
 const STORAGE_KEY_PREFIX = 'focusflow_v2_'
 
@@ -73,6 +75,20 @@ function purgeLegacyDemoData() {
 }
 
 purgeLegacyDemoData()
+
+function hasBrowserData(state: FocusFlowSnapshot): boolean {
+  return Boolean(
+    JSON.stringify(state.profile) !== JSON.stringify(initialProfile) ||
+    state.subjects.length ||
+    state.tasks.length ||
+    state.focusSessions.length ||
+    state.distractionLogs.length ||
+    state.distractionItems.length ||
+    JSON.stringify(state.settings) !== JSON.stringify(initialSettings)
+  )
+}
+
+export type DatabaseSyncStatus = 'loading' | 'ready' | 'offline' | 'import-needed' | 'saving'
 
 function computeStreak(activeDates: Set<string>): number {
   const cursor = new Date()
@@ -183,7 +199,16 @@ interface AppContextType {
 
   // Auth & GitHub Integration
   authUser: AuthUser
+  authUserId: string
   authReady: boolean
+  databaseReady: boolean
+  databaseUserId: string
+  databaseStatus: DatabaseSyncStatus
+  databaseError: string
+  needsLegacyImport: boolean
+  confirmBrowserDataImport: () => Promise<void>
+  startFreshInDatabase: () => void
+  retryDatabaseSync: () => void
   login: (email: string, password: string, signUp: boolean, name?: string) => Promise<void>
   loginAsGuest: (name: string) => Promise<void>
   logout: () => Promise<void>
@@ -219,6 +244,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     provider: 'email'
   })
   const [authReady, setAuthReady] = useState(false)
+  const [authUserId, setAuthUserId] = useState('')
+  const [databaseReady, setDatabaseReady] = useState(false)
+  const [databaseUserId, setDatabaseUserId] = useState('')
+  const [databaseStatus, setDatabaseStatus] = useState<DatabaseSyncStatus>('loading')
+  const [databaseError, setDatabaseError] = useState('')
+  const [needsLegacyImport, setNeedsLegacyImport] = useState(false)
+  const [databaseRetryVersion, setDatabaseRetryVersion] = useState(0)
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     if (!firebaseAuth) {
@@ -226,6 +259,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return
     }
     return onAuthStateChanged(firebaseAuth, (user) => {
+      setAuthUserId(user?.uid || '')
+      setDatabaseUserId('')
+      setDatabaseReady(!user)
+      setNeedsLegacyImport(false)
+      setDatabaseStatus(user ? 'loading' : 'ready')
+      setDatabaseError('')
       setAuthUser(user ? {
         isAuthenticated: true,
         email: user.email || '',
@@ -273,6 +312,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ...initialSettings,
     ...readStored<Partial<AppSettings>>('settings', {})
   }))
+  const snapshot = useMemo<FocusFlowSnapshot>(() => ({
+    profile: storedProfile,
+    subjects,
+    tasks,
+    focusSessions,
+    distractionLogs,
+    distractionItems,
+    settings
+  }), [storedProfile, subjects, tasks, focusSessions, distractionLogs, distractionItems, settings])
+  const snapshotRef = useRef(snapshot)
+
+  useEffect(() => {
+    snapshotRef.current = snapshot
+  }, [snapshot])
 
   // Streak is derived from real focus sessions, never stored or typed in by hand.
   const streakDays = useMemo(
@@ -340,6 +393,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [settings])
 
+  useEffect(() => {
+    if (!authReady) return
+
+    const user = firebaseAuth?.currentUser
+    if (!user || !authUserId || user.uid !== authUserId) return
+
+    let active = true
+    const loadUserData = async () => {
+      try {
+        const remoteState = await loadRemoteState(await user.getIdToken())
+        if (!active) return
+
+        if (remoteState) {
+          setProfile(remoteState.profile)
+          setSubjects(remoteState.subjects)
+          setTasks(remoteState.tasks)
+          setFocusSessions(remoteState.focusSessions)
+          setDistractionLogs(remoteState.distractionLogs)
+          setDistractionItems(remoteState.distractionItems)
+          setSettings(remoteState.settings)
+          setDatabaseStatus('ready')
+        } else if (hasBrowserData(snapshotRef.current)) {
+          setNeedsLegacyImport(true)
+          setDatabaseStatus('import-needed')
+        } else {
+          setDatabaseStatus('ready')
+        }
+
+        setDatabaseUserId(user.uid)
+        setDatabaseReady(true)
+      } catch (error) {
+        if (!active) return
+        setDatabaseUserId(user.uid)
+        setDatabaseReady(true)
+        setDatabaseStatus('offline')
+        setDatabaseError(error instanceof Error ? error.message : 'Could not connect to your account data.')
+      }
+    }
+
+    void loadUserData()
+    return () => { active = false }
+  }, [authReady, authUserId, databaseRetryVersion])
+
+  useEffect(() => {
+    if (
+      !authReady ||
+      !authUserId ||
+      !databaseReady ||
+      databaseUserId !== authUserId ||
+      needsLegacyImport
+    ) return
+
+    const user = firebaseAuth?.currentUser
+    if (!user || user.uid !== authUserId) return
+
+    let active = true
+    const timer = window.setTimeout(() => {
+      setDatabaseStatus('saving')
+      setDatabaseError('')
+      saveQueueRef.current = saveQueueRef.current
+        .catch(() => {})
+        .then(async () => {
+          const currentUser = firebaseAuth?.currentUser
+          if (!currentUser || currentUser.uid !== authUserId) return
+          await saveRemoteState(await currentUser.getIdToken(), snapshot)
+          if (active) setDatabaseStatus('ready')
+        })
+        .catch((error: unknown) => {
+          if (!active) return
+          setDatabaseStatus('offline')
+          setDatabaseError(error instanceof Error ? error.message : 'Could not save your account data.')
+        })
+    }, 600)
+
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [authReady, authUserId, databaseReady, databaseUserId, needsLegacyImport, snapshot])
+
   // Auth handlers
   const login = async (email: string, password: string, signUp: boolean, name?: string) => {
     if (!firebaseAuth) throw new Error('Firebase is not configured. Please contact the app administrator.')
@@ -353,6 +486,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Account creation already succeeded; a profile update must not report it as a failed signup.
       }
     }
+    setAuthUserId(result.user.uid)
     setAuthUser({
       isAuthenticated: true,
       email: result.user.email || '',
@@ -374,6 +508,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('Could not save your guest name. Please try again.')
     }
     setProfile((previous) => ({ ...previous, name: displayName }))
+    setAuthUserId(result.user.uid)
     setAuthUser({ isAuthenticated: true, name: displayName, provider: 'guest' })
     setActiveTab('dashboard')
   }
@@ -381,6 +516,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = async () => {
     if (!firebaseAuth) return
     await signOut(firebaseAuth)
+    setAuthUserId('')
     setActiveTab('login')
   }
 
@@ -901,6 +1037,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [focusSessions, tasks, distractionLogs, profile.targetDailyStudyHours, streakDays])
 
+  const confirmBrowserDataImport = async () => {
+    const user = firebaseAuth?.currentUser
+    if (!user || user.uid !== databaseUserId) return
+
+    setDatabaseStatus('saving')
+    setDatabaseError('')
+    try {
+      await saveRemoteState(await user.getIdToken(), snapshotRef.current)
+      setNeedsLegacyImport(false)
+      setDatabaseStatus('ready')
+    } catch (error) {
+      setDatabaseStatus('import-needed')
+      setDatabaseError(error instanceof Error ? error.message : 'Could not import this browser data.')
+    }
+  }
+
+  const startFreshInDatabase = () => {
+    const accountName = firebaseAuth?.currentUser?.displayName || authUser.name
+    setProfile({ ...initialProfile, name: accountName })
+    setSubjects(initialSubjects)
+    setTasks(initialTasks)
+    setFocusSessions(initialFocusSessions)
+    setDistractionLogs(initialDistractionLogs)
+    setDistractionItems(initialDistractionItems)
+    setSettings(initialSettings)
+    setActiveFocus(idleFocusState)
+    setShowOnboardingModal(true)
+    setNeedsLegacyImport(false)
+    setDatabaseError('')
+    setDatabaseStatus('ready')
+  }
+
+  const retryDatabaseSync = () => {
+    setDatabaseReady(false)
+    setDatabaseUserId('')
+    setNeedsLegacyImport(false)
+    setDatabaseStatus('loading')
+    setDatabaseError('')
+    setDatabaseRetryVersion((version) => version + 1)
+  }
+
   // Data management
   const resetAllData = () => {
     setProfile(initialProfile)
@@ -914,7 +1091,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setShowOnboardingModal(true)
   }
 
-  const clearAllData = () => {
+  const clearAllData = async () => {
+    const user = firebaseAuth?.currentUser
+    if (user) await deleteRemoteState(await user.getIdToken())
     localStorage.clear()
     window.location.reload()
   }
@@ -1000,7 +1179,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tabAwayNotice,
         dismissTabAwayNotice,
         authUser,
+        authUserId,
         authReady,
+        databaseReady,
+        databaseUserId,
+        databaseStatus,
+        databaseError,
+        needsLegacyImport,
+        confirmBrowserDataImport,
+        startFreshInDatabase,
+        retryDatabaseSync,
         login,
         loginAsGuest,
         logout,
