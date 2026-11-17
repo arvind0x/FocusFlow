@@ -103,6 +103,16 @@ export interface AppSettings {
   fiveMinuteStarterRule: boolean
 }
 
+export interface FocusFlowSnapshot {
+  profile: StudentProfile
+  subjects: Subject[]
+  tasks: TimetableTask[]
+  focusSessions: FocusSession[]
+  distractionLogs: DistractionLog[]
+  distractionItems: DistractionItem[]
+  settings: AppSettings
+}
+
 export interface ProductivitySummary {
   totalProductiveMinutes: number
   totalWastedMinutes: number

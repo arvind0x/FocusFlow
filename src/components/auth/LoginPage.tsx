@@ -187,7 +187,7 @@ export const LoginPage: React.FC = () => {
         <div className="mt-6 pt-4 border-t border-[#2e3135] text-center">
           <p className="text-[10px] text-[#5f6368] flex items-center justify-center space-x-1">
             <ShieldCheck className="w-3.5 h-3.5 text-[#81c995]" />
-            <span>Firebase handles sign-in. Study data stays in this browser and may be visible to other people using it.</span>
+            <span>Firebase handles sign-in. Your study data syncs to your account; existing browser data is imported only after you confirm.</span>
           </p>
         </div>
       </div>
