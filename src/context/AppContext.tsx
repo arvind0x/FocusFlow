@@ -246,6 +246,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [authReady, setAuthReady] = useState(false)
   const [authUserId, setAuthUserId] = useState('')
   const [databaseReady, setDatabaseReady] = useState(false)
+  const [databaseWritable, setDatabaseWritable] = useState(false)
   const [databaseUserId, setDatabaseUserId] = useState('')
   const [databaseStatus, setDatabaseStatus] = useState<DatabaseSyncStatus>('loading')
   const [databaseError, setDatabaseError] = useState('')
@@ -260,6 +261,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return onAuthStateChanged(firebaseAuth, (user) => {
       setAuthUserId(user?.uid || '')
+      setDatabaseWritable(false)
       setDatabaseUserId('')
       setDatabaseReady(!user)
       setNeedsLegacyImport(false)
@@ -422,6 +424,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         setDatabaseUserId(user.uid)
+        setDatabaseWritable(true)
         setDatabaseReady(true)
       } catch (error) {
         if (!active) return
@@ -441,6 +444,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       !authReady ||
       !authUserId ||
       !databaseReady ||
+      !databaseWritable ||
       databaseUserId !== authUserId ||
       needsLegacyImport
     ) return
@@ -456,7 +460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .catch(() => {})
         .then(async () => {
           const currentUser = firebaseAuth?.currentUser
-          if (!currentUser || currentUser.uid !== authUserId) return
+          if (!currentUser || currentUser.uid !== authUserId || snapshot !== snapshotRef.current) return
           await saveRemoteState(await currentUser.getIdToken(), snapshot)
           if (active) setDatabaseStatus('ready')
         })
@@ -465,13 +469,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setDatabaseStatus('offline')
           setDatabaseError(error instanceof Error ? error.message : 'Could not save your account data.')
         })
-    }, 600)
+    }, 150)
 
     return () => {
       active = false
       window.clearTimeout(timer)
     }
-  }, [authReady, authUserId, databaseReady, databaseUserId, needsLegacyImport, snapshot])
+  }, [authReady, authUserId, databaseReady, databaseWritable, databaseUserId, needsLegacyImport, snapshot])
 
   // Auth handlers
   const login = async (email: string, password: string, signUp: boolean, name?: string) => {
@@ -1070,6 +1074,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const retryDatabaseSync = () => {
+    setDatabaseWritable(false)
     setDatabaseReady(false)
     setDatabaseUserId('')
     setNeedsLegacyImport(false)

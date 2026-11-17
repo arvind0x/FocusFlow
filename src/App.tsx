@@ -15,6 +15,7 @@ import { LogDistractionModal } from './components/distraction/LogDistractionModa
 import { TabAwayAlertModal } from './components/focus/TabAwayAlertModal'
 import { LofiPlayer } from './components/focus/LofiPlayer'
 import { DatabaseSyncPanel } from './components/auth/DatabaseSyncPanel'
+import { FeedbackButton } from './components/layout/FeedbackButton'
 
 const MainContent: React.FC = () => {
   const {
@@ -93,6 +94,7 @@ function App() {
   return (
     <AppProvider>
       <MainContent />
+      <FeedbackButton />
     </AppProvider>
   )
 }
