@@ -36,7 +36,59 @@
     --accent-green: #1e8e3e;
     --accent-red: #d93025;
     --accent-amber: #f29900;
+    --color-black: #ffffff;
+    --color-white: #202124;
+    --color-zinc-950: #f8f9fa;
+    --color-zinc-900: #f1f3f4;
+    --color-zinc-800: #e8eaed;
+    --color-zinc-700: #dadce0;
+    --color-zinc-600: #9aa0a6;
+    --color-zinc-500: #70757a;
+    --color-zinc-400: #5f6368;
+    --color-zinc-300: #3c4043;
+    --color-zinc-200: #303134;
   }
+}
+
+/* Map the app's existing dark surface utilities to the light palette. */
+.light :is([class~="bg-[#131314]"], [class~="bg-[#1a1b1e]"]) {
+  background-color: var(--bg-secondary);
+}
+.light [class~="bg-[#131314]/95"] {
+  background-color: rgb(248 249 250 / 95%);
+}
+.light [class~="bg-[#131314]/50"] {
+  background-color: rgb(248 249 250 / 50%);
+}
+.light [class~="bg-[#1e1f20]"] {
+  background-color: var(--bg-card);
+}
+.light [class~="bg-[#282a2d]"] {
+  background-color: var(--bg-elevated);
+}
+.light :is([class~="hover:bg-[#1e1f20]"], [class~="hover:bg-[#282a2d]"], [class~="hover:bg-[#333538]"], [class~="hover:bg-[#303236]"]):hover {
+  background-color: var(--bg-card-hover);
+}
+.light :is([class~="border-[#2e3135]"], [class~="border-[#333538]"], [class~="border-[#3c4043]"], [class~="border-[#484a4d]"], [class~="border-[#1e1f20]"]) {
+  border-color: var(--border-color);
+}
+.light :is([class~="text-[#e3e3e3]"], [class~="text-[#d3e3fd]"], [class~="text-[#c7cbd1]"], [class~="text-[#bdc1c6]"]) {
+  color: var(--text-primary);
+}
+.light :is([class~="text-[#9aa0a6]"], [class~="text-[#b4bac1]"], [class~="text-[#5f6368]"]) {
+  color: var(--text-secondary);
+}
+.light [class~="text-[#8ab4f8]"] { color: #1967d2; }
+.light [class~="text-[#81c995]"] { color: #137333; }
+.light [class~="text-[#f28b82]"] { color: #c5221f; }
+.light [class~="text-[#fdd663]"] { color: #8a5200; }
+.light :is([class~="hover:text-[#e3e3e3]"], [class~="hover:text-white"]):hover { color: var(--text-primary); }
+.light [class~="hover:text-[#8ab4f8]"]:hover { color: #1557b0; }
+.light :is([class~="bg-black/70"], [class~="bg-black/85"]) {
+  background-color: rgb(19 19 20 / 70%);
+}
+.light dialog::backdrop {
+  background-color: rgb(19 19 20 / 70%);
 }
 
 body {
