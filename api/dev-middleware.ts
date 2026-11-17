@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import { handleStateRequest } from './state-handler.ts'
+import { handleFeedbackRequest } from './feedback-handler.ts'
 
 const maxRequestBytes = 512 * 1024
 
@@ -29,9 +30,10 @@ export function databaseDevMiddleware(): Plugin {
   return {
     name: 'focusflow-neon-dev-api',
     configureServer(server) {
-      server.middlewares.use('/api/state', (request, response, next) => {
+      server.middlewares.use('/api', (request, response, next) => {
         const originalUrl = (request as IncomingMessage & { originalUrl?: string }).originalUrl || ''
-        if (originalUrl.split('?')[0] !== '/api/state') return next()
+        const path = originalUrl.split('?')[0]
+        if (path !== '/api/state' && path !== '/api/feedback') return next()
 
         void (async () => {
           const headers = new Headers()
@@ -50,12 +52,13 @@ export function databaseDevMiddleware(): Plugin {
             }
           }
 
-          const apiRequest = new Request(`http://${request.headers.host || 'localhost'}${originalUrl}`, {
+          const protocol = request.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'
+          const apiRequest = new Request(`${protocol}://${request.headers.host || 'localhost'}${originalUrl}`, {
             method: request.method || 'GET',
             headers,
             body
           })
-          const apiResponse = await handleStateRequest(apiRequest)
+          const apiResponse = await (path === '/api/feedback' ? handleFeedbackRequest(apiRequest) : handleStateRequest(apiRequest))
           response.statusCode = apiResponse.status
           apiResponse.headers.forEach((value, name) => response.setHeader(name, value))
           response.end(await apiResponse.text())

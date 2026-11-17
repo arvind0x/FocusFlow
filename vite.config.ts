@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss(), databaseDevMiddleware()],
     define: {
-      __FIREBASE_API_KEY__: JSON.stringify(env.apiKey || '')
+      __FIREBASE_API_KEY__: JSON.stringify(env.VITE_FIREBASE_API_KEY || env.apiKey || '')
     }
   }
 })
