@@ -11,7 +11,8 @@ import {
   Edit2,
   Play,
   AlertCircle,
-  Check
+  Check,
+  ChevronDown
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { TimetableTask, PriorityLevel } from '../../types'
@@ -285,16 +286,20 @@ export const TimetablePage: React.FC = () => {
         </button>
       </div>
 
-      <section aria-labelledby="chapter-progress-title" className="p-5 rounded-2xl bg-[#1e1f20] border border-[#333538] shadow-xl text-[#e3e3e3]">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 id="chapter-progress-title" className="text-sm font-bold text-white">Chapter progress</h2>
-            <p className="text-xs text-[#9aa0a6] mt-1">
-              {totalChapters > 0
-                ? `${completedChapters} of ${totalChapters} chapters covered`
-                : 'Track chapters you have covered and schedule the ones you are working on.'}
-            </p>
-          </div>
+      <section aria-labelledby="chapter-progress-title" className="rounded-2xl bg-[#1e1f20] border border-[#333538] shadow-xl text-[#e3e3e3]">
+        <details className="group/progress">
+          <summary className="flex cursor-pointer items-center justify-between gap-4 p-5 list-none rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8ab4f8] [&::-webkit-details-marker]:hidden">
+            <div>
+              <h2 id="chapter-progress-title" className="text-sm font-bold text-white">Chapter progress</h2>
+              <p className="text-xs text-[#9aa0a6] mt-1">
+                {totalChapters > 0
+                  ? `${completedChapters} of ${totalChapters} chapters covered`
+                  : 'Track chapters you have covered and schedule the ones you are working on.'}
+              </p>
+            </div>
+            <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open/progress:rotate-180" />
+          </summary>
+          <div className="px-5 pb-5">
           <button
             type="button"
             onClick={() => setShowChapterForm((visible) => !visible)}
@@ -303,7 +308,6 @@ export const TimetablePage: React.FC = () => {
             <Plus className="w-3.5 h-3.5" />
             <span>{showChapterForm ? 'Cancel' : 'Add chapter'}</span>
           </button>
-        </div>
 
         {showChapterForm && (
           <form onSubmit={handleAddChapter} className="grid grid-cols-1 sm:grid-cols-[180px_1fr_auto] gap-2 mt-4 p-3 rounded-xl bg-black border border-zinc-800">
@@ -343,9 +347,15 @@ export const TimetablePage: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
             {trackedSubjects.map((subject) => (
-              <div key={subject.id} className="p-3 rounded-xl bg-black/50 border border-zinc-800">
-                <h3 className="text-xs font-bold text-zinc-200 mb-2">{subject.name}</h3>
-                <ul className="flex flex-col gap-1.5">
+              <details key={subject.id} className="group/subject rounded-xl bg-black/50 border border-zinc-800">
+                <summary className="flex cursor-pointer items-center justify-between gap-3 p-3 list-none rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8ab4f8] [&::-webkit-details-marker]:hidden">
+                  <span className="min-w-0 text-xs font-bold text-zinc-200">{subject.name}</span>
+                  <span className="flex shrink-0 items-center gap-2 text-xs text-zinc-400">
+                    {subject.chapters?.filter((chapter) => chapter.completed).length} / {subject.chapters?.length} covered
+                    <ChevronDown aria-hidden="true" className="h-4 w-4 transition-transform group-open/subject:rotate-180" />
+                  </span>
+                </summary>
+                <ul className="flex flex-col gap-2 px-3 pb-3">
                   {subject.chapters?.map((chapter) => (
                     <li key={chapter.id} className="flex items-center justify-between gap-2 text-xs">
                       <button
@@ -375,10 +385,12 @@ export const TimetablePage: React.FC = () => {
                     </li>
                   ))}
                 </ul>
-              </div>
+              </details>
             ))}
           </div>
         )}
+          </div>
+        </details>
       </section>
 
       {/* DAILY VIEW */}
