@@ -597,10 +597,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const toggleTaskStatus = (id: string, targetStatus?: TaskStatus) => {
+    const task = tasks.find((item) => item.id === id)
+    const nextStatus = targetStatus ?? (task?.status === 'completed' ? 'pending' : 'completed')
+
+    if (task?.chapterId) {
+      const anotherCompletedTask = tasks.some(
+        (item) => item.id !== id && item.chapterId === task.chapterId && item.status === 'completed'
+      )
+      setSubjects((prev) => prev.map((subject) => ({
+        ...subject,
+        chapters: subject.chapters?.map((chapter) =>
+          chapter.id === task.chapterId
+            ? { ...chapter, completed: nextStatus === 'completed' || anotherCompletedTask }
+            : chapter
+        )
+      })))
+    }
+
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id !== id) return t
-        const nextStatus = targetStatus ?? (t.status === 'completed' ? 'pending' : 'completed')
         return {
           ...t,
           status: nextStatus,

@@ -27,6 +27,7 @@ export const TimetablePage: React.FC = () => {
     rescheduleIncompleteTasks,
     generateSmartTimetable,
     subjects,
+    updateSubject,
     startFocusSession,
     setActiveTab
   } = useApp()
@@ -54,6 +55,10 @@ export const TimetablePage: React.FC = () => {
   const [formEndTime, setFormEndTime] = useState<string>('16:45')
   const [formDuration, setFormDuration] = useState<number>(45)
   const [formPriority, setFormPriority] = useState<PriorityLevel>('high')
+  const [formChapterId, setFormChapterId] = useState<string>('')
+  const [showChapterForm, setShowChapterForm] = useState<boolean>(false)
+  const [chapterSubjectId, setChapterSubjectId] = useState<string>(subjects[0]?.id || '')
+  const [chapterTitle, setChapterTitle] = useState<string>('')
 
   const handleOpenAddModal = (taskToEdit?: TimetableTask) => {
     if (taskToEdit) {
@@ -64,6 +69,7 @@ export const TimetablePage: React.FC = () => {
       setFormEndTime(taskToEdit.endTime)
       setFormDuration(taskToEdit.durationMinutes)
       setFormPriority(taskToEdit.priority)
+      setFormChapterId(taskToEdit.chapterId || '')
     } else {
       setEditingTask(null)
       setFormSubjectId(subjects[0]?.id || '')
@@ -72,8 +78,44 @@ export const TimetablePage: React.FC = () => {
       setFormEndTime('16:45')
       setFormDuration(45)
       setFormPriority('high')
+      setFormChapterId('')
     }
     setShowAddModal(true)
+  }
+
+  const handleAddChapter = (event: React.FormEvent) => {
+    event.preventDefault()
+    const title = chapterTitle.trim()
+    const subject = subjects.find((item) => item.id === chapterSubjectId)
+    if (!title || !subject) return
+    if (subject.chapters?.some((chapter) => chapter.title.toLowerCase() === title.toLowerCase())) return
+
+    updateSubject(subject.id, {
+      chapters: [...(subject.chapters || []), {
+        id: `chapter-${subject.id}-${Date.now()}`,
+        title,
+        completed: false
+      }]
+    })
+    setChapterTitle('')
+    setShowChapterForm(false)
+  }
+
+  const handleToggleChapter = (subjectId: string, chapterId: string) => {
+    const subject = subjects.find((item) => item.id === subjectId)
+    if (!subject) return
+    updateSubject(subjectId, {
+      chapters: subject.chapters?.map((chapter) =>
+        chapter.id === chapterId ? { ...chapter, completed: !chapter.completed } : chapter
+      )
+    })
+  }
+
+  const handleScheduleChapter = (subjectId: string, chapterId: string, title: string) => {
+    handleOpenAddModal()
+    setFormSubjectId(subjectId)
+    setFormChapterId(chapterId)
+    setFormTitle(title)
   }
 
   const handleSaveTask = (e: React.FormEvent) => {
@@ -86,6 +128,7 @@ export const TimetablePage: React.FC = () => {
       updateTask(editingTask.id, {
         subjectId: selectedSub.id,
         subjectName: selectedSub.name,
+        chapterId: formChapterId || undefined,
         title: formTitle.trim(),
         startTime: formStartTime,
         endTime: formEndTime,
@@ -96,6 +139,7 @@ export const TimetablePage: React.FC = () => {
       addTask({
         subjectId: selectedSub.id,
         subjectName: selectedSub.name,
+        chapterId: formChapterId || undefined,
         title: formTitle.trim(),
         startTime: formStartTime,
         endTime: formEndTime,
@@ -135,6 +179,12 @@ export const TimetablePage: React.FC = () => {
 
   const totalScheduledMinutes = currentTasks.reduce((acc, t) => acc + t.durationMinutes, 0)
   const isOverloaded = totalScheduledMinutes > 8 * 60
+  const trackedSubjects = subjects.filter((subject) => (subject.chapters?.length || 0) > 0)
+  const totalChapters = trackedSubjects.reduce((total, subject) => total + (subject.chapters?.length || 0), 0)
+  const completedChapters = trackedSubjects.reduce(
+    (total, subject) => total + (subject.chapters?.filter((chapter) => chapter.completed).length || 0),
+    0
+  )
 
   return (
     <div className="space-y-6 animate-fade-rise pb-12 text-[#e3e3e3]">
@@ -235,6 +285,97 @@ export const TimetablePage: React.FC = () => {
         </button>
       </div>
 
+      <section aria-labelledby="chapter-progress-title" className="p-5 rounded-2xl bg-[#1e1f20] border border-[#333538] shadow-xl text-[#e3e3e3]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 id="chapter-progress-title" className="text-sm font-bold text-white">Chapter progress</h2>
+            <p className="text-xs text-[#9aa0a6] mt-1">
+              {totalChapters > 0
+                ? `${completedChapters} of ${totalChapters} chapters covered`
+                : 'Track chapters you have covered and schedule the ones you are working on.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowChapterForm((visible) => !visible)}
+            className="flex items-center gap-1.5 self-start px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 transition"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{showChapterForm ? 'Cancel' : 'Add chapter'}</span>
+          </button>
+        </div>
+
+        {showChapterForm && (
+          <form onSubmit={handleAddChapter} className="grid grid-cols-1 sm:grid-cols-[180px_1fr_auto] gap-2 mt-4 p-3 rounded-xl bg-black border border-zinc-800">
+            <label className="sr-only" htmlFor="chapter-subject">Subject for new chapter</label>
+            <select
+              id="chapter-subject"
+              value={chapterSubjectId}
+              onChange={(event) => setChapterSubjectId(event.target.value)}
+              disabled={subjects.length === 0}
+              className="px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-white disabled:opacity-50"
+            >
+              {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+            </select>
+            <label className="sr-only" htmlFor="chapter-title">Chapter name</label>
+            <input
+              id="chapter-title"
+              value={chapterTitle}
+              onChange={(event) => setChapterTitle(event.target.value)}
+              placeholder="Chapter name"
+              className="min-w-0 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-600"
+              required
+            />
+            <button
+              type="submit"
+              disabled={subjects.length === 0 || !chapterTitle.trim()}
+              className="px-4 py-2 rounded-lg text-xs font-bold bg-white text-black hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Save chapter
+            </button>
+          </form>
+        )}
+
+        {trackedSubjects.length === 0 ? (
+          <p className="mt-4 p-4 rounded-xl bg-black/50 border border-dashed border-zinc-800 text-xs text-zinc-400">
+            No chapters added yet. Add one here, or enter completed chapters during onboarding.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+            {trackedSubjects.map((subject) => (
+              <div key={subject.id} className="p-3 rounded-xl bg-black/50 border border-zinc-800">
+                <h3 className="text-xs font-bold text-zinc-200 mb-2">{subject.name}</h3>
+                <ul className="flex flex-col gap-1.5">
+                  {subject.chapters?.map((chapter) => (
+                    <li key={chapter.id} className="flex items-center justify-between gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleChapter(subject.id, chapter.id)}
+                        aria-pressed={chapter.completed}
+                        aria-label={chapter.completed ? `Mark ${chapter.title} as not covered` : `Mark ${chapter.title} as covered`}
+                        className="flex min-w-0 items-center gap-2 text-left text-zinc-300 hover:text-white"
+                      >
+                        {chapter.completed
+                          ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                          : <Circle className="w-4 h-4 shrink-0 text-zinc-600" />}
+                        <span className={chapter.completed ? 'truncate line-through text-zinc-500' : 'truncate'}>{chapter.title}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleScheduleChapter(subject.id, chapter.id, chapter.title)}
+                        className="shrink-0 text-[10px] font-semibold text-zinc-400 hover:text-white"
+                      >
+                        {chapter.completed ? 'Schedule review' : 'Schedule'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* DAILY VIEW */}
       {viewMode === 'daily' && (
         <div className="space-y-3">
@@ -266,7 +407,10 @@ export const TimetablePage: React.FC = () => {
                 >
                   <div className="flex items-start space-x-3.5">
                     <button
+                      type="button"
                       onClick={() => toggleTaskStatus(task.id)}
+                      aria-label={isCompleted ? `Mark ${task.title} as incomplete` : `Mark ${task.title} as complete`}
+                      aria-pressed={isCompleted}
                       className="mt-0.5 text-zinc-500 hover:text-white transition"
                     >
                       {isCompleted ? (
@@ -533,7 +677,10 @@ export const TimetablePage: React.FC = () => {
                 <label className="block font-semibold text-zinc-300 mb-1">Subject</label>
                 <select
                   value={formSubjectId}
-                  onChange={(e) => setFormSubjectId(e.target.value)}
+                  onChange={(e) => {
+                    setFormSubjectId(e.target.value)
+                    setFormChapterId('')
+                  }}
                   className="w-full px-3 py-2 rounded-xl bg-black border border-zinc-800 text-white"
                 >
                   {subjects.map((s) => (
@@ -545,10 +692,40 @@ export const TimetablePage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 mb-1">
+                <label className="block font-semibold text-zinc-300 mb-1" htmlFor="tracked-chapter">
+                  Link a tracked chapter (optional)
+                </label>
+                <select
+                  id="tracked-chapter"
+                  value={formChapterId}
+                  onChange={(event) => {
+                    const chapterId = event.target.value
+                    setFormChapterId(chapterId)
+                    const chapter = subjects
+                      .find((subject) => subject.id === formSubjectId)
+                      ?.chapters?.find((item) => item.id === chapterId)
+                    if (chapter) setFormTitle(chapter.title)
+                  }}
+                  className="w-full px-3 py-2 rounded-xl bg-black border border-zinc-800 text-white"
+                >
+                  <option value="">No linked chapter</option>
+                  {subjects.find((subject) => subject.id === formSubjectId)?.chapters?.map((chapter) => (
+                    <option key={chapter.id} value={chapter.id}>
+                      {chapter.title}{chapter.completed ? ' (covered)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Completing this task also updates the chapter&apos;s progress.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-zinc-300 mb-1" htmlFor="task-title">
                   Task / Chapter Topic
                 </label>
                 <input
+                  id="task-title"
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
