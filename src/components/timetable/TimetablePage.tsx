@@ -352,12 +352,17 @@ export const TimetablePage: React.FC = () => {
                         type="button"
                         onClick={() => handleToggleChapter(subject.id, chapter.id)}
                         aria-pressed={chapter.completed}
-                        aria-label={chapter.completed ? `Mark ${chapter.title} as not covered` : `Mark ${chapter.title} as covered`}
+                        aria-label={`Mark ${chapter.classLevel ? `Class ${chapter.classLevel} ` : ''}${chapter.title} as ${chapter.completed ? 'not covered' : 'covered'}`}
                         className="flex min-w-0 items-center gap-2 text-left text-zinc-300 hover:text-white"
                       >
                         {chapter.completed
                           ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
                           : <Circle className="w-4 h-4 shrink-0 text-zinc-600" />}
+                        {chapter.classLevel && (
+                          <span className="shrink-0 rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[9px] font-mono text-zinc-500">
+                            Class {chapter.classLevel}
+                          </span>
+                        )}
                         <span className={chapter.completed ? 'truncate line-through text-zinc-500' : 'truncate'}>{chapter.title}</span>
                       </button>
                       <button
@@ -711,7 +716,7 @@ export const TimetablePage: React.FC = () => {
                   <option value="">No linked chapter</option>
                   {subjects.find((subject) => subject.id === formSubjectId)?.chapters?.map((chapter) => (
                     <option key={chapter.id} value={chapter.id}>
-                      {chapter.title}{chapter.completed ? ' (covered)' : ''}
+                      {chapter.classLevel ? `Class ${chapter.classLevel} · ` : ''}{chapter.title}{chapter.completed ? ' (covered)' : ''}
                     </option>
                   ))}
                 </select>

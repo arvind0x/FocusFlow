@@ -4,10 +4,20 @@ import {
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
-  Check
+  Check,
+  Plus,
+  X
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { PriorityLevel } from '../../types'
+import {
+  cbseSeniorSecondarySyllabus,
+  cbseSyllabusPdfUrls,
+  syllabusSubjectOrder,
+  type SyllabusClass,
+  type SyllabusChapterOption,
+  type SyllabusSubject
+} from './cbseSeniorSecondarySyllabus'
 
 export const OnboardingModal: React.FC = () => {
   const {
@@ -45,7 +55,12 @@ export const OnboardingModal: React.FC = () => {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>(
     subjects.map((s) => s.name)
   )
-  const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>({})
+  const [chapterClass, setChapterClass] = useState<SyllabusClass>(
+    gradeOrExam.startsWith('Class 12') ? '12' : '11'
+  )
+  const [chapterSubjectFilter, setChapterSubjectFilter] = useState<'all' | SyllabusSubject>('all')
+  const [chapterSelection, setChapterSelection] = useState('')
+  const [selectedChapters, setSelectedChapters] = useState<SyllabusChapterOption[]>([])
 
   const defaultSubjectPool = [
     { name: 'Physics', color: '#3b82f6', priority: 'high' as PriorityLevel },
@@ -56,41 +71,87 @@ export const OnboardingModal: React.FC = () => {
     { name: 'English', color: '#ec4899', priority: 'low' as PriorityLevel }
   ]
 
+  const availableSyllabusSubjects = syllabusSubjectOrder.filter((subject) =>
+    selectedSubjects.includes(subject)
+  )
+  const availableChapterOptions = availableSyllabusSubjects
+    .flatMap((subject) => cbseSeniorSecondarySyllabus[chapterClass][subject].map((title) => ({
+      subject,
+      classLevel: chapterClass,
+      title
+    })))
+    .filter((chapter) => chapterSubjectFilter === 'all' || chapter.subject === chapterSubjectFilter)
+    .filter((chapter) => !selectedChapters.some((selected) =>
+      selected.subject === chapter.subject &&
+      selected.classLevel === chapter.classLevel &&
+      selected.title === chapter.title
+    ))
+  const selectedChapterOption = availableChapterOptions.find(
+    (chapter) => `${chapter.subject}::${chapter.title}` === chapterSelection
+  )
+
+  const addSelectedChapter = () => {
+    if (!selectedChapterOption) return
+    setSelectedChapters((previous) => [...previous, selectedChapterOption])
+    setChapterSelection('')
+  }
+
   const toggleSubject = (subName: string) => {
-    setSelectedSubjects((prev) =>
-      prev.includes(subName) ? prev.filter((s) => s !== subName) : [...prev, subName]
+    const isSelected = selectedSubjects.includes(subName)
+    setSelectedSubjects((previous) =>
+      isSelected ? previous.filter((subject) => subject !== subName) : [...previous, subName]
     )
+    setChapterSelection('')
+
+    if (isSelected && syllabusSubjectOrder.includes(subName as SyllabusSubject)) {
+      setSelectedChapters((previous) => previous.filter((chapter) => chapter.subject !== subName))
+      setChapterSubjectFilter((previous) => previous === subName ? 'all' : previous)
+    }
   }
 
   const handleFinish = () => {
     const pool = addSubjects(
       defaultSubjectPool
-        .filter((s) => selectedSubjects.includes(s.name))
-        .map((s) => ({ ...s, weeklyGoalHours: 0 }))
+        .filter((subject) => selectedSubjects.includes(subject.name))
+        .map((subject) => ({ ...subject, weeklyGoalHours: 0 }))
     )
-    const chosenIds = pool.filter((s) => selectedSubjects.includes(s.name)).map((s) => s.id)
-
-    pool.filter((subject) => selectedSubjects.includes(subject.name)).forEach((subject) => {
-      const titles = Array.from(new Set(
-        (chapterDrafts[subject.name] || '')
-          .split(/[\n,]/)
-          .map((title) => title.trim())
-          .filter(Boolean)
-      ))
-      if (titles.length === 0) return
-
-      const existingByTitle = new Map(
-        (subject.chapters || []).map((chapter) => [chapter.title.trim().toLowerCase(), chapter])
+    const poolWithChapterProgress = pool.map((subject) => {
+      const additions = selectedChapters.filter((chapter) =>
+        selectedSubjects.includes(chapter.subject) && chapter.subject === subject.name
       )
-      updateSubject(subject.id, {
-        chapters: titles.map((title, index) => {
-          const existing = existingByTitle.get(title.toLowerCase())
-          return existing
-            ? { ...existing, completed: true }
-            : { id: `chapter-${subject.id}-${Date.now()}-${index}`, title, completed: true }
-        })
+      if (additions.length === 0) return subject
+
+      const chapters = [...(subject.chapters || [])]
+      additions.forEach((addition) => {
+        const existingIndex = chapters.findIndex((chapter) =>
+          chapter.title.trim().toLowerCase() === addition.title.toLowerCase() &&
+          (!chapter.classLevel || chapter.classLevel === addition.classLevel)
+        )
+
+        if (existingIndex >= 0) {
+          const existing = chapters[existingIndex]
+          chapters[existingIndex] = {
+            ...existing,
+            completed: true,
+            classLevel: existing.classLevel || addition.classLevel
+          }
+        } else {
+          const chapterSlug = addition.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+          chapters.push({
+            id: `chapter-${subject.id}-${addition.classLevel}-${chapterSlug}`,
+            title: addition.title,
+            completed: true,
+            classLevel: addition.classLevel
+          })
+        }
       })
+
+      updateSubject(subject.id, { chapters })
+      return { ...subject, chapters }
     })
+    const chosenIds = poolWithChapterProgress
+      .filter((subject) => selectedSubjects.includes(subject.name))
+      .map((subject) => subject.id)
 
     updateProfile({
       name: name.trim() || 'Student',
@@ -110,7 +171,7 @@ export const OnboardingModal: React.FC = () => {
       focusDurationMinutes: focusDuration,
       breakDurationMinutes: breakDuration,
       selectedSubjectIds: chosenIds,
-      subjectPool: pool
+      subjectPool: poolWithChapterProgress
     })
 
     setShowOnboardingModal(false)
@@ -188,7 +249,11 @@ export const OnboardingModal: React.FC = () => {
                       <button
                         key={opt}
                         type="button"
-                        onClick={() => setGradeOrExam(opt)}
+                        onClick={() => {
+                          setGradeOrExam(opt)
+                          if (opt.startsWith('Class 12')) setChapterClass('12')
+                          else if (opt.startsWith('Class 11')) setChapterClass('11')
+                        }}
                         className={`text-left p-3 rounded-xl border text-xs transition ${
                           gradeOrExam === opt
                             ? 'bg-zinc-900 border-zinc-500 text-white font-semibold'
@@ -247,38 +312,158 @@ export const OnboardingModal: React.FC = () => {
           {step === 3 && (
             <div className="space-y-5">
               <div>
-                <h3 className="text-xl font-black text-white">Which chapters have you covered?</h3>
+                <h3 className="text-xl font-black text-white">Mark your syllabus progress</h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Add completed chapters for each selected subject. Enter one chapter per line or separate them with commas. You can update this progress anytime in your timetable.
+                  Choose a class and subject, then add covered chapters one at a time. No typing needed.
                 </p>
               </div>
 
-              <div className="space-y-3">
-                {defaultSubjectPool.filter((subject) => selectedSubjects.includes(subject.name)).length === 0 ? (
-                  <div className="p-4 rounded-xl bg-black border border-zinc-800 text-xs text-zinc-400">
-                    Choose at least one subject in the previous step to add completed chapters.
-                  </div>
-                ) : defaultSubjectPool
-                  .filter((subject) => selectedSubjects.includes(subject.name))
-                  .map((subject) => (
-                    <div key={subject.name} className="p-3.5 rounded-xl bg-black border border-zinc-800">
-                      <label htmlFor={`covered-${subject.name}`} className="block font-semibold text-zinc-200 mb-2">
-                        {subject.name}
-                      </label>
-                      <textarea
-                        id={`covered-${subject.name}`}
-                        value={chapterDrafts[subject.name] || ''}
-                        onChange={(event) => setChapterDrafts((previous) => ({
-                          ...previous,
-                          [subject.name]: event.target.value
-                        }))}
-                        placeholder="e.g. Laws of Motion, Thermodynamics"
-                        rows={2}
-                        className="w-full resize-y px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600"
-                      />
-                    </div>
-                  ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-medium text-zinc-500">Official CBSE 2026–27 syllabus PDFs:</span>
+                {syllabusSubjectOrder.map((subject) => (
+                  <a
+                    key={subject}
+                    href={cbseSyllabusPdfUrls[subject]}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-zinc-800 bg-black px-2.5 py-1 text-[10px] text-zinc-300 transition hover:border-zinc-600 hover:text-white"
+                  >
+                    {subject === 'Mathematics' ? 'Maths' : subject}
+                  </a>
+                ))}
               </div>
+
+              {selectedSubjects.length === 0 ? (
+                <div className="rounded-xl border border-zinc-800 bg-black p-4 text-xs text-zinc-400">
+                  Choose Physics, Chemistry, or Mathematics in the previous step to pick chapters here.
+                </div>
+              ) : availableSyllabusSubjects.length === 0 ? (
+                <div className="rounded-xl border border-zinc-800 bg-black p-4 text-xs text-zinc-400">
+                  Chapter lists are available for Physics, Chemistry, and Mathematics. Select one of these subjects in the previous step.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-zinc-800 bg-black p-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label htmlFor="syllabus-class" className="mb-1.5 block text-xs font-semibold text-zinc-300">
+                          Class
+                        </label>
+                        <select
+                          id="syllabus-class"
+                          value={chapterClass}
+                          onChange={(event) => {
+                            setChapterClass(event.target.value as SyllabusClass)
+                            setChapterSelection('')
+                          }}
+                          className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-white focus:border-zinc-600 focus:outline-none"
+                        >
+                          <option value="11">Class 11</option>
+                          <option value="12">Class 12</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label htmlFor="syllabus-subject" className="mb-1.5 block text-xs font-semibold text-zinc-300">
+                          Subject
+                        </label>
+                        <select
+                          id="syllabus-subject"
+                          value={chapterSubjectFilter}
+                          onChange={(event) => {
+                            setChapterSubjectFilter(event.target.value as 'all' | SyllabusSubject)
+                            setChapterSelection('')
+                          }}
+                          className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-white focus:border-zinc-600 focus:outline-none"
+                        >
+                          <option value="all">All subjects</option>
+                          {availableSyllabusSubjects.map((subject) => (
+                            <option key={subject} value={subject}>{subject}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_auto]">
+                      <div>
+                        <label htmlFor="syllabus-chapter" className="mb-1.5 block text-xs font-semibold text-zinc-300">
+                          Chapter
+                        </label>
+                        <select
+                          id="syllabus-chapter"
+                          value={chapterSelection}
+                          onChange={(event) => setChapterSelection(event.target.value)}
+                          disabled={availableChapterOptions.length === 0}
+                          className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-white focus:border-zinc-600 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="">
+                            {availableChapterOptions.length > 0 ? 'Choose a chapter' : 'All chapters added'}
+                          </option>
+                          {availableChapterOptions.map((chapter) => (
+                            <option
+                              key={`${chapter.subject}::${chapter.title}`}
+                              value={`${chapter.subject}::${chapter.title}`}
+                            >
+                              {chapterSubjectFilter === 'all' ? `${chapter.subject} · ${chapter.title}` : chapter.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addSelectedChapter}
+                        disabled={!selectedChapterOption}
+                        className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-white px-4 py-2 text-xs font-bold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add chapter
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-zinc-800 bg-black/60 p-3.5" aria-live="polite">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-xs font-bold text-zinc-200">Covered chapters</h4>
+                      <span className="text-[10px] font-mono text-zinc-500">
+                        {selectedChapters.length} added
+                      </span>
+                    </div>
+                    {selectedChapters.length === 0 ? (
+                      <p className="mt-2 text-xs text-zinc-500">
+                        Your chapters will appear here as you add them.
+                      </p>
+                    ) : (
+                      <ul className="mt-3 space-y-2">
+                        {selectedChapters.map((chapter) => (
+                          <li
+                            key={`${chapter.classLevel}-${chapter.subject}-${chapter.title}`}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-mono text-zinc-500">
+                                Class {chapter.classLevel} · {chapter.subject}
+                              </p>
+                              <p className="break-words text-xs font-medium text-zinc-100">
+                                {chapter.title}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedChapters((previous) => previous.filter((item) =>
+                                !(item.classLevel === chapter.classLevel && item.subject === chapter.subject && item.title === chapter.title)
+                              ))}
+                              aria-label={`Remove Class ${chapter.classLevel} ${chapter.subject}: ${chapter.title}`}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-900 hover:text-white"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
