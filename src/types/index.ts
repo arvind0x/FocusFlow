@@ -4,12 +4,19 @@ export type PriorityLevel = 'high' | 'medium' | 'low'
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'rescheduled'
 
+export interface StudyChapter {
+  id: string
+  title: string
+  completed: boolean
+}
+
 export interface Subject {
   id: string
   name: string
   color: string
   priority: PriorityLevel
   weeklyGoalHours: number
+  chapters?: StudyChapter[]
 }
 
 export interface TimetableTask {
@@ -25,6 +32,7 @@ export interface TimetableTask {
   notes?: string
   priority: PriorityLevel
   completedAt?: string
+  chapterId?: string
 }
 
 export interface FocusSession {

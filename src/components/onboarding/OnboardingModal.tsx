@@ -4,7 +4,6 @@ import {
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
-  Clock,
   Check
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
@@ -18,6 +17,7 @@ export const OnboardingModal: React.FC = () => {
     updateProfile,
     subjects,
     addSubjects,
+    updateSubject,
     generateSmartTimetable,
     setActiveTab
   } = useApp()
@@ -45,6 +45,7 @@ export const OnboardingModal: React.FC = () => {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>(
     subjects.map((s) => s.name)
   )
+  const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>({})
 
   const defaultSubjectPool = [
     { name: 'Physics', color: '#3b82f6', priority: 'high' as PriorityLevel },
@@ -68,6 +69,28 @@ export const OnboardingModal: React.FC = () => {
         .map((s) => ({ ...s, weeklyGoalHours: 0 }))
     )
     const chosenIds = pool.filter((s) => selectedSubjects.includes(s.name)).map((s) => s.id)
+
+    pool.filter((subject) => selectedSubjects.includes(subject.name)).forEach((subject) => {
+      const titles = Array.from(new Set(
+        (chapterDrafts[subject.name] || '')
+          .split(/[\n,]/)
+          .map((title) => title.trim())
+          .filter(Boolean)
+      ))
+      if (titles.length === 0) return
+
+      const existingByTitle = new Map(
+        (subject.chapters || []).map((chapter) => [chapter.title.trim().toLowerCase(), chapter])
+      )
+      updateSubject(subject.id, {
+        chapters: titles.map((title, index) => {
+          const existing = existingByTitle.get(title.toLowerCase())
+          return existing
+            ? { ...existing, completed: true }
+            : { id: `chapter-${subject.id}-${Date.now()}-${index}`, title, completed: true }
+        })
+      })
+    })
 
     updateProfile({
       name: name.trim() || 'Student',
@@ -107,11 +130,11 @@ export const OnboardingModal: React.FC = () => {
             </div>
             <div>
               <h2 className="text-sm font-bold text-white">Student Onboarding</h2>
-              <p className="text-[11px] text-zinc-400">Step {step} of 4</p>
+              <p className="text-[11px] text-zinc-400">Step {step} of 5</p>
             </div>
           </div>
           <div className="flex items-center space-x-1.5">
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
@@ -220,8 +243,47 @@ export const OnboardingModal: React.FC = () => {
             </div>
           )}
 
-          {/* STEP 3: Available Hours & Rhythm */}
+          {/* STEP 3: Chapters Already Covered */}
           {step === 3 && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xl font-black text-white">Which chapters have you covered?</h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Add completed chapters for each selected subject. Enter one chapter per line or separate them with commas. You can update this progress anytime in your timetable.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {defaultSubjectPool.filter((subject) => selectedSubjects.includes(subject.name)).length === 0 ? (
+                  <div className="p-4 rounded-xl bg-black border border-zinc-800 text-xs text-zinc-400">
+                    Choose at least one subject in the previous step to add completed chapters.
+                  </div>
+                ) : defaultSubjectPool
+                  .filter((subject) => selectedSubjects.includes(subject.name))
+                  .map((subject) => (
+                    <div key={subject.name} className="p-3.5 rounded-xl bg-black border border-zinc-800">
+                      <label htmlFor={`covered-${subject.name}`} className="block font-semibold text-zinc-200 mb-2">
+                        {subject.name}
+                      </label>
+                      <textarea
+                        id={`covered-${subject.name}`}
+                        value={chapterDrafts[subject.name] || ''}
+                        onChange={(event) => setChapterDrafts((previous) => ({
+                          ...previous,
+                          [subject.name]: event.target.value
+                        }))}
+                        placeholder="e.g. Laws of Motion, Thermodynamics"
+                        rows={2}
+                        className="w-full resize-y px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600"
+                      />
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: Available Hours & Rhythm */}
+          {step === 4 && (
             <div className="space-y-5">
               <div>
                 <h3 className="text-xl font-black text-white">
@@ -334,8 +396,8 @@ export const OnboardingModal: React.FC = () => {
             </div>
           )}
 
-          {/* STEP 4: Accountability Bot */}
-          {step === 4 && (
+          {/* STEP 5: Accountability Bot */}
+          {step === 5 && (
             <div className="space-y-5">
               <div>
                 <h3 className="text-xl font-black text-white">
@@ -432,7 +494,7 @@ export const OnboardingModal: React.FC = () => {
             </button>
           )}
 
-          {step < 4 ? (
+          {step < 5 ? (
             <button
               type="button"
               onClick={() => setStep((s) => s + 1)}
