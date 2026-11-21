@@ -675,6 +675,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let currentMinute = startHour * 60
     const endMinute = endHour * 60
     let subjectIdx = 0
+    const chapterIndices = new Map<string, number>()
 
     const sampleTopics: Record<string, string[]> = {
       'Physics': [
@@ -709,8 +710,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     while (currentMinute + focusDurationMinutes <= endMinute) {
       const subject = sortedSubjects[subjectIdx % sortedSubjects.length]
+      const pendingChapters = (subject.chapters || []).filter((chapter) => !chapter.completed)
+      const chapterIndex = chapterIndices.get(subject.id) || 0
+      const chapter = pendingChapters[chapterIndex % pendingChapters.length]
+      if (chapter) chapterIndices.set(subject.id, chapterIndex + 1)
       const topics = sampleTopics[subject.name] || ['Target Chapter Revision & Practice Questions']
-      const topic = topics[Math.floor(Math.random() * topics.length)]
+      const topic = chapter
+        ? `${chapter.classLevel ? `Class ${chapter.classLevel}: ` : ''}${chapter.title}`
+        : subject.chapters?.length ? 'Review completed chapters' : topics[Math.floor(Math.random() * topics.length)]
 
       const startH = Math.floor(currentMinute / 60).toString().padStart(2, '0')
       const startM = (currentMinute % 60).toString().padStart(2, '0')
@@ -722,6 +729,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `gen-task-${Date.now()}-${generated.length}`,
         subjectId: subject.id,
         subjectName: subject.name,
+        ...(chapter ? { chapterId: chapter.id } : {}),
         title: `${subject.name}: ${topic}`,
         startTime: `${startH}:${startM}`,
         endTime: `${endH}:${endM}`,
