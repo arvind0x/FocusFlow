@@ -8,7 +8,7 @@ export interface StudyChapter {
   id: string
   title: string
   completed: boolean
-  classLevel?: '11' | '12'
+  classLevel?: '10' | '11' | '12'
 }
 
 export interface Subject {
