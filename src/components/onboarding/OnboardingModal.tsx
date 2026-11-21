@@ -61,6 +61,13 @@ export const OnboardingModal: React.FC = () => {
   const [chapterSubjectFilter, setChapterSubjectFilter] = useState<'all' | SyllabusSubject>('all')
   const [chapterSelection, setChapterSelection] = useState('')
   const [selectedChapters, setSelectedChapters] = useState<SyllabusChapterOption[]>([])
+  const [chapterEntryMode, setChapterEntryMode] = useState<'cbse' | 'custom'>(
+    gradeOrExam.startsWith('Class 11') || gradeOrExam.startsWith('Class 12') ? 'cbse' : 'custom'
+  )
+  const [customChapterSubject, setCustomChapterSubject] = useState('')
+  const [customChapterTitle, setCustomChapterTitle] = useState('')
+  const [customChapters, setCustomChapters] = useState<{ subject: string; title: string }[]>([])
+  const supportsCbseSyllabus = gradeOrExam.startsWith('Class 11') || gradeOrExam.startsWith('Class 12')
 
   const defaultSubjectPool = [
     { name: 'Physics', color: '#3b82f6', priority: 'high' as PriorityLevel },
@@ -96,6 +103,22 @@ export const OnboardingModal: React.FC = () => {
     setChapterSelection('')
   }
 
+  const addCustomChapter = () => {
+    const subject = customChapterSubject.trim()
+    const title = customChapterTitle.trim()
+    if (!subject || !title) return
+
+    const alreadyAdded = customChapters.some((chapter) =>
+      chapter.subject.toLowerCase() === subject.toLowerCase() &&
+      chapter.title.toLowerCase() === title.toLowerCase()
+    )
+    if (alreadyAdded) return
+
+    setCustomChapters((previous) => [...previous, { subject, title }])
+    setCustomChapterSubject(subject)
+    setCustomChapterTitle('')
+  }
+
   const toggleSubject = (subName: string) => {
     const isSelected = selectedSubjects.includes(subName)
     setSelectedSubjects((previous) =>
@@ -110,22 +133,47 @@ export const OnboardingModal: React.FC = () => {
   }
 
   const handleFinish = () => {
+    const manualSubjectNames = [...customChapters.reduce((names, chapter) => {
+      const key = chapter.subject.toLowerCase()
+      if (!names.has(key)) names.set(key, chapter.subject)
+      return names
+    }, new Map<string, string>()).values()]
+    const customColors = ['#3b82f6', '#10b981', '#8b5cf6', '#14b8a6', '#f59e0b', '#ec4899']
+    const customSubjectConfigs = manualSubjectNames.map((subjectName, index) => {
+      const preset = defaultSubjectPool.find(
+        (subject) => subject.name.toLowerCase() === subjectName.toLowerCase()
+      )
+      return preset || {
+        name: subjectName,
+        color: customColors[index % customColors.length],
+        priority: 'medium' as PriorityLevel
+      }
+    })
+    const subjectConfigs = [
+      ...defaultSubjectPool.filter((subject) => selectedSubjects.includes(subject.name)),
+      ...customSubjectConfigs
+    ].filter((subject, index, allSubjects) =>
+      allSubjects.findIndex((candidate) => candidate.name.toLowerCase() === subject.name.toLowerCase()) === index
+    )
     const pool = addSubjects(
-      defaultSubjectPool
-        .filter((subject) => selectedSubjects.includes(subject.name))
-        .map((subject) => ({ ...subject, weeklyGoalHours: 0 }))
+      subjectConfigs.map((subject) => ({ ...subject, weeklyGoalHours: 0 }))
     )
     const poolWithChapterProgress = pool.map((subject) => {
-      const additions = selectedChapters.filter((chapter) =>
-        selectedSubjects.includes(chapter.subject) && chapter.subject === subject.name
-      )
+      const additions: { subject: string; title: string; classLevel?: '11' | '12' }[] = [
+        ...selectedChapters.filter((chapter) => chapter.subject === subject.name),
+        ...customChapters.filter((chapter) =>
+          chapter.subject.toLowerCase() === subject.name.toLowerCase()
+        )
+      ]
       if (additions.length === 0) return subject
 
       const chapters = [...(subject.chapters || [])]
       additions.forEach((addition) => {
         const existingIndex = chapters.findIndex((chapter) =>
           chapter.title.trim().toLowerCase() === addition.title.toLowerCase() &&
-          (!chapter.classLevel || chapter.classLevel === addition.classLevel)
+          (addition.classLevel
+            ? !chapter.classLevel || chapter.classLevel === addition.classLevel
+            : !chapter.classLevel)
         )
 
         if (existingIndex >= 0) {
@@ -138,10 +186,10 @@ export const OnboardingModal: React.FC = () => {
         } else {
           const chapterSlug = addition.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
           chapters.push({
-            id: `chapter-${subject.id}-${addition.classLevel}-${chapterSlug}`,
+            id: `chapter-${subject.id}-${addition.classLevel || 'custom'}-${chapterSlug}`,
             title: addition.title,
             completed: true,
-            classLevel: addition.classLevel
+            ...(addition.classLevel ? { classLevel: addition.classLevel } : {})
           })
         }
       })
@@ -149,8 +197,11 @@ export const OnboardingModal: React.FC = () => {
       updateSubject(subject.id, { chapters })
       return { ...subject, chapters }
     })
+    const chosenSubjectNames = new Set(
+      [...selectedSubjects, ...manualSubjectNames].map((subjectName) => subjectName.toLowerCase())
+    )
     const chosenIds = poolWithChapterProgress
-      .filter((subject) => selectedSubjects.includes(subject.name))
+      .filter((subject) => chosenSubjectNames.has(subject.name.toLowerCase()))
       .map((subject) => subject.id)
 
     updateProfile({
@@ -251,8 +302,15 @@ export const OnboardingModal: React.FC = () => {
                         type="button"
                         onClick={() => {
                           setGradeOrExam(opt)
-                          if (opt.startsWith('Class 12')) setChapterClass('12')
-                          else if (opt.startsWith('Class 11')) setChapterClass('11')
+                          if (opt.startsWith('Class 12')) {
+                            setChapterClass('12')
+                            setChapterEntryMode('cbse')
+                          } else if (opt.startsWith('Class 11')) {
+                            setChapterClass('11')
+                            setChapterEntryMode('cbse')
+                          } else {
+                            setChapterEntryMode('custom')
+                          }
                         }}
                         className={`text-left p-3 rounded-xl border text-xs transition ${
                           gradeOrExam === opt
@@ -314,26 +372,142 @@ export const OnboardingModal: React.FC = () => {
               <div>
                 <h3 className="text-xl font-black text-white">Mark your syllabus progress</h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Choose a class and subject, then add covered chapters one at a time. No typing needed.
+                  {chapterEntryMode === 'cbse'
+                    ? 'Choose from the CBSE Class 11/12 chapters, or switch to your own syllabus if it differs.'
+                    : 'Write in your subject or paper and add covered chapters one at a time.'}
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-medium text-zinc-500">Official CBSE 2026–27 syllabus PDFs:</span>
-                {syllabusSubjectOrder.map((subject) => (
-                  <a
-                    key={subject}
-                    href={cbseSyllabusPdfUrls[subject]}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-full border border-zinc-800 bg-black px-2.5 py-1 text-[10px] text-zinc-300 transition hover:border-zinc-600 hover:text-white"
+              {supportsCbseSyllabus && (
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Syllabus entry method">
+                  <button
+                    type="button"
+                    onClick={() => setChapterEntryMode('cbse')}
+                    aria-pressed={chapterEntryMode === 'cbse'}
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                      chapterEntryMode === 'cbse'
+                        ? 'border-zinc-500 bg-zinc-900 text-white'
+                        : 'border-zinc-800 bg-black text-zinc-400 hover:border-zinc-700'
+                    }`}
                   >
-                    {subject === 'Mathematics' ? 'Maths' : subject}
-                  </a>
-                ))}
-              </div>
+                    CBSE Class 11/12 list
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChapterEntryMode('custom')}
+                    aria-pressed={chapterEntryMode === 'custom'}
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                      chapterEntryMode === 'custom'
+                        ? 'border-zinc-500 bg-zinc-900 text-white'
+                        : 'border-zinc-800 bg-black text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    Write my own syllabus
+                  </button>
+                </div>
+              )}
 
-              {selectedSubjects.length === 0 ? (
+              {chapterEntryMode === 'cbse' && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-medium text-zinc-500">Official CBSE 2026–27 syllabus PDFs:</span>
+                  {syllabusSubjectOrder.map((subject) => (
+                    <a
+                      key={subject}
+                      href={cbseSyllabusPdfUrls[subject]}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border border-zinc-800 bg-black px-2.5 py-1 text-[10px] text-zinc-300 transition hover:border-zinc-600 hover:text-white"
+                    >
+                      {subject === 'Mathematics' ? 'Maths' : subject}
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {chapterEntryMode === 'custom' ? (
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-zinc-800 bg-black p-4">
+                    <p className="mb-3 text-xs text-zinc-400">
+                      Enter a course, subject, or paper name, then add each chapter or topic you have already covered.
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label htmlFor="custom-chapter-subject" className="mb-1.5 block text-xs font-semibold text-zinc-300">
+                          Subject or paper
+                        </label>
+                        <input
+                          id="custom-chapter-subject"
+                          type="text"
+                          value={customChapterSubject}
+                          onChange={(event) => setCustomChapterSubject(event.target.value)}
+                          placeholder="e.g. Data Structures, Anatomy"
+                          className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="custom-chapter-title" className="mb-1.5 block text-xs font-semibold text-zinc-300">
+                          Chapter or topic
+                        </label>
+                        <input
+                          id="custom-chapter-title"
+                          type="text"
+                          value={customChapterTitle}
+                          onChange={(event) => setCustomChapterTitle(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+                              event.preventDefault()
+                              addCustomChapter()
+                            }
+                          }}
+                          placeholder="e.g. Trees and Graphs"
+                          className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addCustomChapter}
+                      disabled={!customChapterSubject.trim() || !customChapterTitle.trim()}
+                      className="mt-3 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-white px-4 py-2 text-xs font-bold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add chapter
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl border border-zinc-800 bg-black/60 p-3.5" aria-live="polite">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-xs font-bold text-zinc-200">Covered chapters</h4>
+                      <span className="text-[10px] font-mono text-zinc-500">{customChapters.length} added</span>
+                    </div>
+                    {customChapters.length === 0 ? (
+                      <p className="mt-2 text-xs text-zinc-500">Your chapters will appear here as you add them.</p>
+                    ) : (
+                      <ul className="mt-3 flex flex-col gap-2">
+                        {customChapters.map((chapter) => (
+                          <li
+                            key={`${chapter.subject.toLowerCase()}-${chapter.title.toLowerCase()}`}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-mono text-zinc-500">{chapter.subject}</p>
+                              <p className="break-words text-xs font-medium text-zinc-100">{chapter.title}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setCustomChapters((previous) => previous.filter((item) => item !== chapter))}
+                              aria-label={`Remove ${chapter.subject}: ${chapter.title}`}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-900 hover:text-white"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              ) : selectedSubjects.length === 0 ? (
                 <div className="rounded-xl border border-zinc-800 bg-black p-4 text-xs text-zinc-400">
                   Choose Physics, Chemistry, or Mathematics in the previous step to pick chapters here.
                 </div>
