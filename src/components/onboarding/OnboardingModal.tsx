@@ -12,7 +12,7 @@ import { useApp } from '../../context/AppContext'
 import { PriorityLevel } from '../../types'
 import {
   cbseSeniorSecondarySyllabus,
-  cbseSyllabusPdfUrls,
+  cbseSyllabusPdfLinks,
   syllabusSubjectOrder,
   type SyllabusClass,
   type SyllabusChapterOption,
@@ -56,18 +56,18 @@ export const OnboardingModal: React.FC = () => {
     subjects.map((s) => s.name)
   )
   const [chapterClass, setChapterClass] = useState<SyllabusClass>(
-    gradeOrExam.startsWith('Class 12') ? '12' : '11'
+    gradeOrExam.startsWith('Class 10') ? '10' : gradeOrExam.startsWith('Class 12') ? '12' : '11'
   )
   const [chapterSubjectFilter, setChapterSubjectFilter] = useState<'all' | SyllabusSubject>('all')
   const [chapterSelection, setChapterSelection] = useState('')
   const [selectedChapters, setSelectedChapters] = useState<SyllabusChapterOption[]>([])
   const [chapterEntryMode, setChapterEntryMode] = useState<'cbse' | 'custom'>(
-    gradeOrExam.startsWith('Class 11') || gradeOrExam.startsWith('Class 12') ? 'cbse' : 'custom'
+    gradeOrExam.startsWith('Class 10') || gradeOrExam.startsWith('Class 11') || gradeOrExam.startsWith('Class 12') ? 'cbse' : 'custom'
   )
   const [customChapterSubject, setCustomChapterSubject] = useState('')
   const [customChapterTitle, setCustomChapterTitle] = useState('')
   const [customChapters, setCustomChapters] = useState<{ subject: string; title: string }[]>([])
-  const supportsCbseSyllabus = gradeOrExam.startsWith('Class 11') || gradeOrExam.startsWith('Class 12')
+  const supportsCbseSyllabus = gradeOrExam.startsWith('Class 10') || gradeOrExam.startsWith('Class 11') || gradeOrExam.startsWith('Class 12')
 
   const defaultSubjectPool = [
     { name: 'Physics', color: '#3b82f6', priority: 'high' as PriorityLevel },
@@ -78,11 +78,12 @@ export const OnboardingModal: React.FC = () => {
     { name: 'English', color: '#ec4899', priority: 'low' as PriorityLevel }
   ]
 
+  const subjectsInSelectedClass = Object.keys(cbseSeniorSecondarySyllabus[chapterClass]) as SyllabusSubject[]
   const availableSyllabusSubjects = syllabusSubjectOrder.filter((subject) =>
-    selectedSubjects.includes(subject)
+    selectedSubjects.includes(subject) && subjectsInSelectedClass.includes(subject)
   )
   const availableChapterOptions = availableSyllabusSubjects
-    .flatMap((subject) => cbseSeniorSecondarySyllabus[chapterClass][subject].map((title) => ({
+    .flatMap((subject) => (cbseSeniorSecondarySyllabus[chapterClass][subject] || []).map((title) => ({
       subject,
       classLevel: chapterClass,
       title
@@ -159,7 +160,7 @@ export const OnboardingModal: React.FC = () => {
       subjectConfigs.map((subject) => ({ ...subject, weeklyGoalHours: 0 }))
     )
     const poolWithChapterProgress = pool.map((subject) => {
-      const additions: { subject: string; title: string; classLevel?: '11' | '12' }[] = [
+      const additions: { subject: string; title: string; classLevel?: SyllabusClass }[] = [
         ...selectedChapters.filter((chapter) => chapter.subject === subject.name),
         ...customChapters.filter((chapter) =>
           chapter.subject.toLowerCase() === subject.name.toLowerCase()
@@ -302,11 +303,17 @@ export const OnboardingModal: React.FC = () => {
                         type="button"
                         onClick={() => {
                           setGradeOrExam(opt)
-                          if (opt.startsWith('Class 12')) {
+                          if (opt.startsWith('Class 10')) {
+                            setChapterClass('10')
+                            setChapterSubjectFilter('all')
+                            setChapterEntryMode('cbse')
+                          } else if (opt.startsWith('Class 12')) {
                             setChapterClass('12')
+                            setChapterSubjectFilter('all')
                             setChapterEntryMode('cbse')
                           } else if (opt.startsWith('Class 11')) {
                             setChapterClass('11')
+                            setChapterSubjectFilter('all')
                             setChapterEntryMode('cbse')
                           } else {
                             setChapterEntryMode('custom')
@@ -373,7 +380,7 @@ export const OnboardingModal: React.FC = () => {
                 <h3 className="text-xl font-black text-white">Mark your syllabus progress</h3>
                 <p className="text-xs text-zinc-400 mt-1">
                   {chapterEntryMode === 'cbse'
-                    ? 'Choose from the CBSE Class 11/12 chapters, or switch to your own syllabus if it differs.'
+                    ? 'Choose from CBSE Class 10 Science biology topics or Class 11/12 subject chapters, or switch to your own syllabus.'
                     : 'Write in your subject or paper and add covered chapters one at a time.'}
                 </p>
               </div>
@@ -390,7 +397,7 @@ export const OnboardingModal: React.FC = () => {
                         : 'border-zinc-800 bg-black text-zinc-400 hover:border-zinc-700'
                     }`}
                   >
-                    CBSE Class 11/12 list
+                    CBSE syllabus chapter list
                   </button>
                   <button
                     type="button"
@@ -410,17 +417,18 @@ export const OnboardingModal: React.FC = () => {
               {chapterEntryMode === 'cbse' && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[10px] font-medium text-zinc-500">Official CBSE 2026–27 syllabus PDFs:</span>
-                  {syllabusSubjectOrder.map((subject) => (
+                  {cbseSyllabusPdfLinks.map((link) => (
                     <a
-                      key={subject}
-                      href={cbseSyllabusPdfUrls[subject]}
+                      key={link.label}
+                      href={link.url}
                       target="_blank"
                       rel="noreferrer"
                       className="rounded-full border border-zinc-800 bg-black px-2.5 py-1 text-[10px] text-zinc-300 transition hover:border-zinc-600 hover:text-white"
                     >
-                      {subject === 'Mathematics' ? 'Maths' : subject}
+                      {link.label}
                     </a>
                   ))}
+                  <span className="text-[10px] text-zinc-500">Class 10 Biology topics are included in the integrated Science syllabus.</span>
                 </div>
               )}
 
@@ -509,11 +517,11 @@ export const OnboardingModal: React.FC = () => {
                 </div>
               ) : selectedSubjects.length === 0 ? (
                 <div className="rounded-xl border border-zinc-800 bg-black p-4 text-xs text-zinc-400">
-                  Choose Physics, Chemistry, or Mathematics in the previous step to pick chapters here.
+                  Choose Biology, Physics, Chemistry, or Mathematics in the previous step to pick chapters here.
                 </div>
               ) : availableSyllabusSubjects.length === 0 ? (
                 <div className="rounded-xl border border-zinc-800 bg-black p-4 text-xs text-zinc-400">
-                  Chapter lists are available for Physics, Chemistry, and Mathematics. Select one of these subjects in the previous step.
+                  Select Biology for Class 10 Science topics, or Biology, Physics, Chemistry, or Mathematics for Class 11/12 chapter lists.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -528,10 +536,12 @@ export const OnboardingModal: React.FC = () => {
                           value={chapterClass}
                           onChange={(event) => {
                             setChapterClass(event.target.value as SyllabusClass)
+                            setChapterSubjectFilter('all')
                             setChapterSelection('')
                           }}
                           className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-white focus:border-zinc-600 focus:outline-none"
                         >
+                          <option value="10">Class 10</option>
                           <option value="11">Class 11</option>
                           <option value="12">Class 12</option>
                         </select>
