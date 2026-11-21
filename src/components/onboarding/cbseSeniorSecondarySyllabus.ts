@@ -1,5 +1,5 @@
 export type SyllabusClass = '10' | '11' | '12'
-export type SyllabusSubject = 'Physics' | 'Chemistry' | 'Mathematics' | 'Biology'
+export type SyllabusSubject = 'Science' | 'Physics' | 'Chemistry' | 'Mathematics' | 'Biology' | 'English'
 
 export interface SyllabusChapterOption {
   subject: SyllabusSubject
@@ -8,16 +8,26 @@ export interface SyllabusChapterOption {
 }
 
 export const syllabusSubjectOrder: SyllabusSubject[] = [
+  'Science',
   'Physics',
   'Chemistry',
   'Mathematics',
-  'Biology'
+  'Biology',
+  'English'
 ]
 
 export const cbseSyllabusPdfLinks = [
   {
     label: 'Class 10 Science (includes Biology)',
     url: 'https://cbseacademic.nic.in/web_material/CurriculumMain27/SecPart1/Science_SecP1_2026-27.pdf'
+  },
+  {
+    label: 'Class 10 Mathematics',
+    url: 'https://cbseacademic.nic.in/web_material/CurriculumMain27/SecPart1/Maths_SecP1X_2026-27.pdf'
+  },
+  {
+    label: 'CBSE curriculum (including English)',
+    url: 'https://cbseacademic.nic.in/curriculum_2027.html'
   },
   {
     label: 'Class 11–12 Physics',
@@ -42,15 +52,47 @@ export const cbseSeniorSecondarySyllabus: Record<
   Partial<Record<SyllabusSubject, string[]>>
 > = {
   '10': {
-    Biology: [
-      'Life Processes',
-      'Control and Coordination',
-      'Reproduction',
-      'Heredity and Evolution (Formative Assessment Only)',
-      'Our Environment'
+    Science: [
+      'Chemical Reactions and Equations', 'Acids, Bases and Salts', 'Metals and Non-metals',
+      'Carbon and its Compounds', 'Life Processes', 'Control and Coordination',
+      'How do Organisms Reproduce?', 'Heredity', 'Light: Reflection and Refraction',
+      'The Human Eye and the Colourful World', 'Electricity',
+      'Magnetic Effects of Electric Current', 'Our Environment'
+    ],
+    Mathematics: [
+      'Real Numbers', 'Polynomials', 'Pair of Linear Equations in Two Variables',
+      'Quadratic Equations', 'Arithmetic Progressions', 'Triangles', 'Coordinate Geometry',
+      'Introduction to Trigonometry', 'Some Applications of Trigonometry', 'Circles',
+      'Areas Related to Circles', 'Surface Areas and Volumes', 'Statistics', 'Probability'
+    ],
+    English: [
+      'Reading Skills', 'Grammar and Writing Skills',
+      'First Flight: A Letter to God', 'First Flight: Nelson Mandela: Long Walk to Freedom',
+      'First Flight: Stories About Flying', 'First Flight: From the Diary of Anne Frank',
+      'First Flight: Glimpses of India', 'First Flight: Mijbil the Otter',
+      'First Flight: Madam Rides the Bus', 'First Flight: The Sermon at Benares',
+      'First Flight: The Proposal', 'First Flight: Dust of Snow', 'First Flight: Fire and Ice',
+      'First Flight: A Tiger in the Zoo', 'First Flight: How to Tell Wild Animals',
+      'First Flight: The Ball Poem', 'First Flight: Amanda!', 'First Flight: The Trees',
+      'First Flight: Fog', 'First Flight: The Tale of Custard the Dragon',
+      'First Flight: For Anne Gregory', 'Footprints Without Feet: A Triumph of Surgery',
+      "Footprints Without Feet: The Thief's Story", 'Footprints Without Feet: The Midnight Visitor',
+      'Footprints Without Feet: A Question of Trust', 'Footprints Without Feet: Footprints Without Feet',
+      'Footprints Without Feet: The Making of a Scientist', 'Footprints Without Feet: The Necklace',
+      'Footprints Without Feet: Bholi', 'Footprints Without Feet: The Book That Saved the Earth'
     ]
   },
   '11': {
+    English: [
+      'Reading Skills', 'Grammar and Creative Writing Skills',
+      'Hornbill: The Portrait of a Lady', 'Hornbill: A Photograph',
+      'Hornbill: We’re Not Afraid to Die... if We Can All Be Together',
+      'Hornbill: Discovering Tut: The Saga Continues', 'Hornbill: The Laburnum Top',
+      'Hornbill: The Voice of the Rain', 'Hornbill: Childhood', 'Hornbill: The Adventure',
+      'Hornbill: Silk Road', 'Hornbill: Father to Son',
+      'Snapshots: The Summer of the Beautiful White Horse', 'Snapshots: The Address',
+      'Snapshots: Mother’s Day', 'Snapshots: Birth', 'Snapshots: The Tale of Melon City'
+    ],
     Physics: [
       'Units and Measurements',
       'Motion in a Straight Line',
@@ -118,6 +160,15 @@ export const cbseSeniorSecondarySyllabus: Record<
     ]
   },
   '12': {
+    English: [
+      'Reading Skills', 'Creative Writing Skills', 'Flamingo: The Last Lesson',
+      'Flamingo: Lost Spring', 'Flamingo: Deep Water', 'Flamingo: The Rattrap',
+      'Flamingo: Indigo', 'Flamingo: Poets and Pancakes', 'Flamingo: The Interview',
+      'Flamingo: Going Places', 'Flamingo: My Mother at Sixty-Six', 'Flamingo: Keeping Quiet',
+      'Flamingo: A Thing of Beauty', 'Flamingo: A Roadside Stand', 'Flamingo: Aunt Jennifer’s Tigers',
+      'Vistas: The Third Level', 'Vistas: The Tiger King', 'Vistas: Journey to the End of the Earth',
+      'Vistas: The Enemy', 'Vistas: On the Face of It', 'Vistas: Memories of Childhood'
+    ],
     Physics: [
       'Electric Charges and Fields',
       'Electrostatic Potential and Capacitance',
