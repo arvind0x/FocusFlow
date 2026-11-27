@@ -228,11 +228,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Navigation
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}tab`)
-    return (saved as TabType) || 'dashboard'
+    return saved === 'login' ? 'landing' : (saved as TabType) || 'dashboard'
   })
 
   const setActiveTab = (tab: TabType) => {
     setActiveTabState(tab)
+    if (tab === 'login') {
+      localStorage.removeItem(`${STORAGE_KEY_PREFIX}tab`)
+      return
+    }
     localStorage.setItem(`${STORAGE_KEY_PREFIX}tab`, tab)
   }
 
@@ -521,7 +525,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!firebaseAuth) return
     await signOut(firebaseAuth)
     setAuthUserId('')
-    setActiveTab('login')
+    setActiveTab('landing')
   }
 
   // GitHub integration handlers
