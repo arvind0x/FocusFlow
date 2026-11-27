@@ -42,8 +42,14 @@ const MainContent: React.FC = () => {
     return <main className="min-h-screen bg-[#131314] text-[#e3e3e3] flex items-center justify-center" role="status">Loading your account data...</main>
   }
 
-  if (!authUser.isAuthenticated && activeTab !== 'landing') {
-    return <main className="min-h-screen bg-[#131314] text-[#e3e3e3]"><LoginPage /></main>
+  if (!authUser.isAuthenticated && activeTab !== 'landing' && activeTab !== 'login') {
+    return (
+      <main className="min-h-screen bg-[#131314] text-[#e3e3e3]">
+        <LandingPage />
+        <Footer />
+        <OnboardingModal />
+      </main>
+    )
   }
 
   // Full-page views
